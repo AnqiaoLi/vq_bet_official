@@ -5,6 +5,7 @@ from torch import jit
 from vqvae.vqvae_utils import *
 import einops
 from vector_quantize_pytorch import ResidualVQ
+from examples.normalizer import Normalizer
 
 
 class EncoderMLP(nn.Module):
@@ -56,6 +57,7 @@ class VqVae:
         load_dir=None,
         encoder_loss_multiplier=1.0,
         act_scale=1.0,
+        normalization = True,
     ):
         self.n_latent_dims = n_latent_dims
         self.input_dim_h = input_dim_h
@@ -67,6 +69,9 @@ class VqVae:
         self.device = device
         self.encoder_loss_multiplier = encoder_loss_multiplier
         self.act_scale = act_scale
+        self.normalization = normalization
+        self.normalizer = None
+        self.load_dir = load_dir
 
         discrete_cfg = {"groups": self.vqvae_groups, "n_embed": self.vqvae_n_embed}
 
@@ -115,6 +120,9 @@ class VqVae:
         else:
             self.vq_layer.train()
 
+    def set_normalizer(self, normalizer):
+        self.normalizer = normalizer
+
     def draw_logits_forward(self, encoding_logits):
         z_embed = self.vq_layer.draw_logits_forward(encoding_logits)
         return z_embed
@@ -128,9 +136,13 @@ class VqVae:
     def get_action_from_latent(self, latent):
         output = self.decoder(latent) * self.act_scale
         if self.input_dim_h == 1:
-            return einops.rearrange(output, "N (T A) -> N T A", A=self.input_dim_w)
+            output = einops.rearrange(output, "N (T A) -> N T A", A=self.input_dim_w)
         else:
-            return einops.rearrange(output, "N (T A) -> N T A", A=self.input_dim_w)
+            output = einops.rearrange(output, "N (T A) -> N T A", A=self.input_dim_w)
+        if self.normalization:
+            assert self.normalizer is not None, "Normalizer is not set"
+            output = self.normalizer.denormalize({"act": output})['act']
+        return output
 
     def preprocess(self, state):
         if not torch.is_tensor(state):
@@ -143,6 +155,9 @@ class VqVae:
 
     def get_code(self, state, required_recon=False):
         state = state / self.act_scale
+        if self.normalization:
+            assert self.normalizer is not None, "Normalizer is not set"
+            state = self.normalizer.normalize({"act": state})['act']
         state = self.preprocess(state)
         with torch.no_grad():
             state_rep = self.encoder(state)
@@ -170,7 +185,11 @@ class VqVae:
 
     def vqvae_update(self, state):
         state = state / self.act_scale
+        if self.normalization:
+            assert self.normalizer is not None, "Normalizer is not set"
+            state = self.normalizer.normalize({"act": state})['act']
         state = self.preprocess(state)
+        # TODO: add normalization
         state_rep = self.encoder(state)
         state_rep_shape = state_rep.shape[:-1]
         state_rep_flat = state_rep.view(state_rep.size(0), -1, state_rep.size(1))
@@ -180,6 +199,7 @@ class VqVae:
         vq_loss_state = torch.sum(vq_loss_state)
 
         dec_out = self.decoder(state_vq)
+        # if normalize the input, the dec_out is the reconstruction of the normalized state
         encoder_loss = (state - dec_out).abs().mean()
 
         rep_loss = encoder_loss * self.encoder_loss_multiplier + (vq_loss_state * 5)
@@ -189,11 +209,19 @@ class VqVae:
         rep_loss.backward()
         self.vqvae_optimizer.step()
         vqvae_recon_loss = torch.nn.MSELoss()(state, dec_out)
+        if self.normalization:
+            # reshape the state and dec_out to the original shape
+            state = einops.rearrange(state, "N (T A) -> N T A", A=self.input_dim_w)
+            dec_out = einops.rearrange(dec_out, "N (T A) -> N T A", A=self.input_dim_w)
+            state = self.normalizer.denormalize({"act": state})['act']
+            dec_out = self.normalizer.denormalize({"act": dec_out})['act']
+            raw_reon_loss = torch.nn.MSELoss()(state, dec_out)
         return (
             encoder_loss.clone().detach(),
             vq_loss_state.clone().detach(),
             vq_code,
             vqvae_recon_loss.item(),
+            raw_reon_loss.item(),
         )
 
     def state_dict(self):
@@ -202,6 +230,7 @@ class VqVae:
             "decoder": self.decoder.state_dict(),
             "optimizer": self.vqvae_optimizer.state_dict(),
             "vq_embedding": self.vq_layer.state_dict(),
+            "normalizer": self.normalizer.get_params() if self.normalizer is not None else None,
         }
 
     def load_state_dict(self, state_dict):
@@ -209,4 +238,7 @@ class VqVae:
         self.decoder.load_state_dict(state_dict["decoder"])
         self.vqvae_optimizer.load_state_dict(state_dict["optimizer"])
         self.vq_layer.load_state_dict(state_dict["vq_embedding"])
+        if state_dict["normalizer"] is not None:
+            self.normalizer = Normalizer()
+            self.normalizer.load_params(state_dict["normalizer"])
         self.vq_layer.eval()
