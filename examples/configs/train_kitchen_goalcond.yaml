@@ -17,7 +17,7 @@ action_window_size: 1
 sequentially_select: false
 goal_dim: 60 # goal_dim: 0 non goal cond
 visual_input: false # true: image-based policy, false: state-based policy
-vqvae_load_dir: "YOUR_PATH_TO_PRETRAINED_VQVAE/trained_vqvae.pt"
+vqvae_load_dir: "/home/anqiao/MasterThesis/Checkpoints/VQ-BeT/kitchen_goalcond_pretrained/rvq/trained_vqvae.pt"
 
 wandb:
   project: "vq-bet"
@@ -54,7 +54,7 @@ data:
 
 save_every: 10
 save_path: "${env_vars.save_path}/checkpoints/${env.gym.id}/${now:%Y-%m-%d}/${now:%H-%M-%S}"
-load_path: null
+load_path: "/home/anqiao/MasterThesis/Checkpoints/VQ-BeT/kitchen_goalcond_pretrained/vq-bet"
 
 model:
   _target_: vq_behavior_transformer.BehaviorTransformer

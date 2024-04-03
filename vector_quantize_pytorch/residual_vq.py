@@ -130,7 +130,7 @@ class ResidualVQ(nn.Module):
         sample_codebook_temp = None
     ):
         num_quant, quant_dropout_multiple_of, return_loss, device = self.num_quantizers, self.quantize_dropout_multiple_of, exists(indices), x.device
-
+        # x : (batch_size, 1, latent_dim)
         x = self.project_in(x)
 
         assert not (self.accept_image_fmap and exists(indices))

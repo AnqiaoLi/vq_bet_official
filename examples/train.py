@@ -14,7 +14,7 @@ import wandb
 from video import VideoRecorder
 import pickle
 
-config_name = "train_ant_goalcond"
+config_name = "train_kitchen_goalcond"
 
 if "MUJOCO_GL" not in os.environ:
     os.environ["MUJOCO_GL"] = "egl"

@@ -455,6 +455,7 @@ class EuclideanCodebook(nn.Module):
         if exists(mask):
             mask = repeat(mask, 'b n -> c (b h n)', c = flatten.shape[0], h = flatten.shape[-2] // (mask.shape[0] * mask.shape[1]))
 
+        # initialize the codebook
         self.init_embed_(flatten, mask = mask)
 
         if self.affine_param:
@@ -467,6 +468,7 @@ class EuclideanCodebook(nn.Module):
             batch_std = self.batch_variance.clamp(min = 1e-5).sqrt()
             embed = (embed - self.codebook_mean) * (batch_std / codebook_std) + self.batch_mean
 
+        # calculate distances
         dist = -cdist(flatten, embed)
 
         embed_ind, embed_onehot = self.gumbel_sample(dist, dim = -1, temperature = sample_codebook_temp, training = self.training)
@@ -479,6 +481,7 @@ class EuclideanCodebook(nn.Module):
         else:
             quantize = batched_embedding(embed_ind, embed)
 
+        # update the codebook
         if self.training and self.ema_update and not freeze_codebook:
 
             if self.affine_param:
@@ -490,16 +493,22 @@ class EuclideanCodebook(nn.Module):
             cluster_size = embed_onehot.sum(dim = 1)
 
             self.all_reduce_fn(cluster_size)
+            # ema update of the cluster size old = old * decay + new * (1 - decay)
             ema_inplace(self.cluster_size.data, cluster_size, self.decay)
-
+            
             embed_sum = einsum('h n d, h n c -> h c d', flatten, embed_onehot)
             self.all_reduce_fn(embed_sum.contiguous())
+            # ema update of the cluster center = old * decay + new * (1 - decay)
             ema_inplace(self.embed_avg.data, embed_sum, self.decay)
 
+            # laplace smoothing to avoid zero division
             cluster_size = laplace_smoothing(self.cluster_size, self.codebook_size, self.eps) * self.cluster_size.sum(dim = -1, keepdim = True)
 
+            # normalize the cluster center by the cluster size
             embed_normalized = self.embed_avg / rearrange(cluster_size, '... -> ... 1')
             self.embed.data.copy_(embed_normalized)
+
+            # remove dead codes
             self.expire_codes_(x)
 
         if needs_codebook_dim:
