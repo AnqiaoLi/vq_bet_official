@@ -232,6 +232,7 @@ class RelayKitchenTrajectoryDataset(TensorDataset, TrajectoryDataset):
 
     def __getitem__(self, idx):
         T = self.masks[idx].sum().int().item()
+        # tensors: [observations, actions, goals]
         return tuple(x[idx, :T] for x in self.tensors)
 
 
@@ -349,6 +350,7 @@ class TrajectorySlicerDataset(TrajectoryDataset):
         future_seq_len: Optional[int] = None,
         only_sample_tail: bool = False,
         transform: Optional[Callable] = None,
+        padding: str = "None", # "None", "before"
     ):
         if future_conditional:
             assert future_seq_len is not None, "must specify a future_seq_len"
@@ -362,12 +364,15 @@ class TrajectorySlicerDataset(TrajectoryDataset):
         self.future_seq_len = future_seq_len
         self.only_sample_tail = only_sample_tail
         self.transform = transform
+        self.padding = padding
         self.slices = []
         min_seq_length = np.inf
         if vqbet_get_future_action_chunk:
             min_window_required = window + action_window
         else:
-            min_window_required = max(window, action_window)
+            # min_window_required = max(window, action_window)
+            # fully use the data
+            min_window_required = action_window
         for i in range(len(self.dataset)):  # type: ignore
             T = self.dataset.get_seq_length(i)  # avoid reading actual seq (slow)
             min_seq_length = min(T, min_seq_length)
@@ -376,9 +381,14 @@ class TrajectorySlicerDataset(TrajectoryDataset):
                     f"Ignored short sequence #{i}: len={T}, window={min_window_required}"
                 )
             else:
-                self.slices += [
-                    (i, 0, end + 1) for end in range(window - 1)
-                ]  # slice indices follow convention [start, end)
+                if padding == "before":
+                    self.slices += [
+                        (i, 0, end + 1) for end in range(window - 1)
+                    ]  # slice indices follow convention [start, end)
+                # elif padding == "after":
+                #     self.slices += [
+                #         (i, T - 1 - start, T) for start in range(window - 1)
+                #     ]
                 self.slices += [
                     (i, start, start + window)
                     for start in range(T - min_window_required)
@@ -400,6 +410,7 @@ class TrajectorySlicerDataset(TrajectoryDataset):
 
     def __getitem__(self, idx):
         i, start, end = self.slices[idx]
+        ###### ???? TODO: check if this is correct
         if self.vqbet_get_future_action_chunk:
             if end - start < self.window:
                 if self.dataset[i][0].ndim > 2:
@@ -530,10 +541,11 @@ def get_train_val_sliced(
     future_seq_len: Optional[int] = None,
     only_sample_tail: bool = False,
     transform: Optional[Callable[[Any], Any]] = None,
+    padding: str = "None",
 ):
     train, val = split_traj_datasets(
-        traj_dataset,
-        train_fraction=train_fraction,
+        traj_dataset, # (N, T, D)
+        train_fraction=train_fraction, 
         random_seed=random_seed,
     )
     traj_slicer_kwargs = {
@@ -546,6 +558,7 @@ def get_train_val_sliced(
         "future_seq_len": future_seq_len,
         "only_sample_tail": only_sample_tail,
         "transform": transform,
+        "padding": padding
     }
     train_slices = TrajectorySlicerDataset(train, **traj_slicer_kwargs)
     val_slices = TrajectorySlicerDataset(val, **traj_slicer_kwargs)
@@ -733,3 +746,88 @@ def get_ur3_train_val(
 
 def transpose_batch_timestep(*args):
     return (einops.rearrange(arg, "b t ... -> t b ...") for arg in args)
+
+
+class ALMATrajectoryDataset(TensorDataset, TrajectoryDataset):
+    def __init__(
+        self, data_directory, device="cuda", onehot_goals=False, visual_input=False, noise_enhance_coe = 0
+    ):
+        data_directory = Path(data_directory)
+        if visual_input:
+            observations = []
+            for i in tqdm.trange(566):
+                img_obs_epi = torch.load(
+                    data_directory
+                    / "image_resnet_embedding"
+                    / "demostensor_epi_{}.pth".format(i),
+                    map_location=torch.device("cpu"),
+                )
+                img_obs_epi.requires_grad_(False)
+                observations.append(img_obs_epi.to(device))
+            observations = torch.stack(observations)
+        else:
+            observations = torch.load(data_directory / "input_data.pt").to(device)
+            actions = torch.load(data_directory / "output_data.pt").to(device)
+            masks = torch.load(data_directory / "mask_data.pt").to(device)
+        
+        noise = torch.randn(observations.shape) * noise_enhance_coe
+        observations += noise.to(device)
+        noise = torch.randn(actions.shape) * noise_enhance_coe
+        actions += noise.to(device)
+        print("data size:", observations.shape, actions.shape)
+        
+        self.masks = masks
+        tensors = [observations, actions]
+        # if onehot_goals:
+        #     tensors.append(goals)
+        tensors = [t.to(device).float() for t in tensors]
+        TensorDataset.__init__(self, *tensors)
+        self.observations = self.tensors[0]
+        self.actions = self.tensors[1]
+
+    def get_seq_length(self, idx):
+        return int(self.masks[idx].sum().item())
+
+    def __getitem__(self, idx):
+        T = self.masks[idx].sum().int().item()
+        # tensors: [observations, actions, goals]
+        return tuple(x[idx, :T] for x in self.tensors)
+
+def get_alma_train_val(
+    data_directory,
+    train_fraction=0.9,
+    random_seed=42,
+    window_size=10,
+    action_window_size=10,
+    vqbet_get_future_action_chunk: bool = True,
+    only_sample_tail: bool = False,
+    goal_conditional: Optional[str] = None,
+    future_seq_len: Optional[int] = None,
+    min_future_sep: int = 0,
+    transform: Optional[Callable[[Any], Any]] = None,
+    visual_input=False,
+    padding: str = "None",
+    noise_enhance_coe = 0
+):
+    if goal_conditional is not None:
+        assert goal_conditional in ["future", "onehot"]
+    return get_train_val_sliced(
+        ALMATrajectoryDataset(
+            data_directory,
+            onehot_goals=(goal_conditional == "onehot"),
+            visual_input=visual_input,
+            noise_enhance_coe=noise_enhance_coe
+        ),
+        train_fraction,
+        random_seed,
+        window_size,
+        action_window_size,
+        vqbet_get_future_action_chunk,
+        only_sample_tail=only_sample_tail,
+        future_conditional=(goal_conditional == "future"),
+        min_future_sep=min_future_sep,
+        future_seq_len=future_seq_len,
+        transform=transform,
+        padding=padding,
+    )
+
