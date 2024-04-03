@@ -410,7 +410,6 @@ class TrajectorySlicerDataset(TrajectoryDataset):
 
     def __getitem__(self, idx):
         i, start, end = self.slices[idx]
-        ###### ???? TODO: check if this is correct
         if self.vqbet_get_future_action_chunk:
             if end - start < self.window:
                 if self.dataset[i][0].ndim > 2:
