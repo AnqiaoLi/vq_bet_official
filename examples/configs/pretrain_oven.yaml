@@ -1,0 +1,70 @@
+defaults:
+  - env_vars: env_vars
+  - _self_
+
+seed: 42
+window_size: 10
+goal_window_size: 10
+eval_window_size: 10
+batch_size: 1024
+epochs: 300
+eval_freq: 10
+eval_on_env_freq: 25
+num_env_evals: 5
+num_final_evals: 20
+num_final_eval_per_goal: 5
+action_window_size: 5
+
+wandb:
+  project: "vq-bet"
+  entity: ${env_vars.wandb_entity}
+  run_name: "pretrain_oven"
+
+device: cuda
+optim:
+  lr: 5.5e-5
+  weight_decay: 2e-4
+  betas: [0.9, 0.999]
+
+env:
+  gym:
+    _target_: gym.make
+    id: oven
+  obs_dim: 32
+  act_dim: 32
+
+data:
+  _target_: dataset.get_alma_train_val
+  data_directory: /home/anqiao/MasterThesis/Data/OvenOpening/pt/output_fullstate
+  goal_conditional: future
+  window_size: ${window_size}
+  future_seq_len: ${goal_window_size}
+  min_future_sep: ${action_window_size}
+  action_window_size: ${action_window_size}
+  vqbet_get_future_action_chunk: false
+  padding: "None"
+
+init_normalization: true
+normalizer:
+  _target_: normalizer.Normalizer
+  mode: "limits"
+  device: ${device}
+
+save_every: 10
+save_path: "${env_vars.save_path}/checkpoints/${env.gym.id}/${now:%Y-%m-%d}/${now:%H-%M-%S}"
+load_path: null
+
+vqvae_model:
+  _target_: vqvae.VqVae
+  obs_dim: 32
+  input_dim_h: ${action_window_size}
+  input_dim_w: 32
+  n_latent_dims: 512
+  vqvae_n_embed: 16
+  vqvae_groups: 2
+  eval: false
+  device: ${device}
+  encoder_loss_multiplier: 1.0
+  normalization: ${init_normalization}
+  act_scale: 1.0
+  # load_dir: "/home/anqiao/MasterThesis/Checkpoints/VQ-BeT/checkpoints/oven/2024-03-31/21-54-19/pretrain_oven/trained_vqvae.pt"

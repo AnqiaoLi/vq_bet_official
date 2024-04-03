@@ -9,9 +9,10 @@ import torch
 import tqdm
 from omegaconf import OmegaConf
 from vqvae.vqvae import *
+from normalizer import Normalizer
 import wandb
 
-config_name = "pretrain_ant"
+config_name = "pretrain_oven"
 
 
 def seed_everything(random_seed: int):
@@ -27,6 +28,9 @@ def main(cfg):
         project=cfg.wandb.project,
         entity=cfg.wandb.entity,
         config=OmegaConf.to_container(cfg, resolve=True),
+        name=cfg.wandb.run_name,
+        tags=["with normalization"],
+        # mode="disabled"
     )
     run_name = run.name or "Offline"
     save_path = Path(cfg.save_path) / run_name
@@ -39,15 +43,22 @@ def main(cfg):
     train_loader = torch.utils.data.DataLoader(
         train_data, batch_size=cfg.batch_size, shuffle=True, pin_memory=False
     )
+    # normlization 
+    if vqvae_model.load_dir is None and cfg.init_normalization:
+        normalizer = hydra.utils.instantiate(cfg.normalizer)
+        normalizer.fit(train_data.dataset)
+        vqvae_model.set_normalizer(normalizer)
+
     for epoch in tqdm.trange(cfg.epochs):
         for data in tqdm.tqdm(train_loader):
             obs, act, goal = (x.to(cfg.device) for x in data)
 
             (
-                encoder_loss,
-                vq_loss_state,
-                vq_code,
-                vqvae_recon_loss,
+                encoder_loss, # reconstruction loss, 
+                vq_loss_state, # codebook loss
+                vq_code, # codebook index
+                vqvae_recon_loss, # reconstruction loss, norm=2
+                raw_reon_loss # loss after denormalization, norm = 2
             ) = vqvae_model.vqvae_update(act)  # N T D
 
             wandb.log({"pretrain/n_different_codes": len(torch.unique(vq_code))})
@@ -57,8 +68,9 @@ def main(cfg):
             wandb.log({"pretrain/encoder_loss": encoder_loss})
             wandb.log({"pretrain/vq_loss_state": vq_loss_state})
             wandb.log({"pretrain/vqvae_recon_loss": vqvae_recon_loss})
+            wandb.log({"pretrain/raw_reon_loss": raw_reon_loss})
 
-        if epoch % 50 == 0:
+        if epoch % 10 == 0:
             state_dict = vqvae_model.state_dict()
             torch.save(state_dict, os.path.join(save_path, "trained_vqvae.pt"))
 
