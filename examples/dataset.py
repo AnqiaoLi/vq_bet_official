@@ -749,7 +749,7 @@ def transpose_batch_timestep(*args):
 
 class ALMATrajectoryDataset(TensorDataset, TrajectoryDataset):
     def __init__(
-        self, data_directory, device="cuda", onehot_goals=False, visual_input=False, noise_enhance_coe = 0
+        self, data_directory, device="cuda", onehot_goals=False, visual_input=False
     ):
         data_directory = Path(data_directory)
         if visual_input:
@@ -769,10 +769,6 @@ class ALMATrajectoryDataset(TensorDataset, TrajectoryDataset):
             actions = torch.load(data_directory / "output_data.pt").to(device)
             masks = torch.load(data_directory / "mask_data.pt").to(device)
         
-        noise = torch.randn(observations.shape) * noise_enhance_coe
-        observations += noise.to(device)
-        noise = torch.randn(actions.shape) * noise_enhance_coe
-        actions += noise.to(device)
         print("data size:", observations.shape, actions.shape)
         
         self.masks = masks
@@ -806,7 +802,6 @@ def get_alma_train_val(
     transform: Optional[Callable[[Any], Any]] = None,
     visual_input=False,
     padding: str = "None",
-    noise_enhance_coe = 0
 ):
     if goal_conditional is not None:
         assert goal_conditional in ["future", "onehot"]
@@ -815,7 +810,6 @@ def get_alma_train_val(
             data_directory,
             onehot_goals=(goal_conditional == "onehot"),
             visual_input=visual_input,
-            noise_enhance_coe=noise_enhance_coe
         ),
         train_fraction,
         random_seed,

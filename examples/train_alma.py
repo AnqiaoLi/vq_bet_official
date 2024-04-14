@@ -37,7 +37,7 @@ def main(cfg):
     print(OmegaConf.to_yaml(cfg))
     seed_everything(cfg.seed)
     train_data, test_data = hydra.utils.instantiate(cfg.data)
-    train_env = MockEnv(cfg, train_data, num_env=2)
+    train_env = MockEnv(cfg, train_data, num_env=2, history_stat_index=0)
     train_loader = torch.utils.data.DataLoader(
         train_data, batch_size=cfg.batch_size, shuffle=True, pin_memory=False
     )
@@ -87,72 +87,6 @@ def main(cfg):
    
         return train_env.state_list, train_env.action_list
 
-    # @torch.no_grad()
-    # def eval_on_env(
-    #     cfg,
-    #     num_evals=cfg.num_env_evals,
-    #     num_eval_per_goal=1,
-    #     videorecorder=None,
-    #     epoch=None,
-    # ):
-    #     avg_reward = 0
-    #     action_list = []
-    #     completion_id_list = []
-    #     avg_max_coverage = []  # only used in pusht env
-    #     avg_final_coverage = []  # only used in pusht env
-    #     for goal_idx in range(num_evals):
-    #         if videorecorder is not None:
-    #             videorecorder.init(enabled=(goal_idx == 0))
-    #         for _ in range(num_eval_per_goal):
-    #             obs_stack = deque(maxlen=cfg.eval_window_size)
-    #             obs_stack.append(env.reset())
-    #             done, step, total_reward = False, 0, 0
-    #             goal, _ = goal_fn(env, obs_stack[-1], goal_idx, step)
-    #             while not done:
-    #                 obs = torch.from_numpy(np.stack(obs_stack)).float().to(cfg.device)
-    #                 goal = torch.as_tensor(goal, dtype=torch.float32, device=cfg.device)
-    #                 action, _, _ = cbet_model(obs.unsqueeze(0), goal.unsqueeze(0), None)
-    #                 if cfg.action_window_size > 1:
-    #                     action_list.append(action[-1].cpu().detach().numpy())
-    #                     if len(action_list) > cfg.action_window_size:
-    #                         action_list = action_list[1:]
-    #                     curr_action = np.array(action_list)
-    #                     curr_action = (
-    #                         np.sum(curr_action, axis=0)[0] / curr_action.shape[0]
-    #                     )
-    #                     new_action_list = []
-    #                     for a_chunk in action_list:
-    #                         new_action_list.append(
-    #                             np.concatenate(
-    #                                 (a_chunk[1:], np.zeros((1, a_chunk.shape[1])))
-    #                             )
-    #                         )
-    #                     action_list = new_action_list
-    #                 else:
-    #                     curr_action = action[-1, 0, :].cpu().detach().numpy()
-
-    #                 obs, reward, done, info = env.step(curr_action)
-                    
-    #                 if videorecorder.enabled:
-    #                     videorecorder.record(info["image"])
-    #                 step += 1
-    #                 total_reward += reward
-    #                 obs_stack.append(obs)
-    #                 if "pusht" not in config_name:
-    #                     goal, _ = goal_fn(env, obs_stack[-1], goal_idx, step)
-    #             avg_reward += total_reward
-    #             if "pusht" in config_name:
-    #                 env.env._seed += 1
-    #                 avg_max_coverage.append(info["max_coverage"])
-    #                 avg_final_coverage.append(info["final_coverage"])
-    #             completion_id_list.append(info["all_completions_ids"])
-    #         videorecorder.save("eval_{}_{}.mp4".format(epoch, goal_idx))
-    #     return (
-    #         avg_reward / (num_evals * num_eval_per_goal),
-    #         completion_id_list,
-    #         avg_max_coverage,
-    #         avg_final_coverage,
-    #     )
 
     for epoch in tqdm.trange(cfg.epochs):
         cbet_model.eval()
@@ -162,25 +96,6 @@ def main(cfg):
             fig = train_env.plot_different_state(plt_indicies = [6, 7, 8, 9, 10, 11], plt_time = 300)
             wandb.log({"eval_on_mockenv": wandb.Image(fig)})
             del fig
-        # if (epoch % cfg.eval_on_env_freq == 0):
-        #     avg_reward, completion_id_list, max_coverage, final_coverage = eval_on_env(
-        #         cfg,
-        #         videorecorder=video,
-        #         epoch=epoch,
-        #         num_eval_per_goal=cfg.num_final_eval_per_goal,
-        #     )
-        #     with open("{}/completion_idx_{}.json".format(save_path, epoch), "wb") as fp:
-        #         pickle.dump(completion_id_list, fp)
-        #     wandb.log({"eval_on_env": avg_reward})
-        #     if "pusht" in config_name:
-        #         wandb.log(
-        #             {"final coverage mean": sum(final_coverage) / len(final_coverage)}
-        #         )
-        #         wandb.log({"final coverage max": max(final_coverage)})
-        #         wandb.log({"final coverage min": min(final_coverage)})
-        #         wandb.log({"max coverage mean": sum(max_coverage) / len(max_coverage)})
-        #         wandb.log({"max coverage max": max(max_coverage)})
-        #         wandb.log({"max coverage min": min(max_coverage)})
 
         if epoch % cfg.eval_freq == 0:
             total_loss = 0
@@ -214,6 +129,9 @@ def main(cfg):
             else:
                 optimizer["optimizer2"].zero_grad()
             obs, act, goal = (x.to(cfg.device) for x in data)
+            # add noise to observation
+            if cfg.noise_enhance_coef > 0:
+                obs += torch.randn_like(obs) * cfg.noise_enhance_coef
             predicted_act, loss, loss_dict = cbet_model(obs, goal, act)
             wandb.log({"train/{}".format(x): y for (x, y) in loss_dict.items()})
             loss.backward()
@@ -226,24 +144,6 @@ def main(cfg):
         if epoch % cfg.save_every == 0:
             cbet_model.save_model(save_path)
 
-    # avg_reward, completion_id_list, max_coverage, final_coverage = eval_on_env(
-    #     cfg,
-    #     num_evals=cfg.num_final_evals,
-    #     num_eval_per_goal=cfg.num_final_eval_per_goal,
-    #     videorecorder=video,
-    #     epoch=cfg.epochs,
-    # )
-    # if "pusht" in config_name:
-    #     wandb.log({"final coverage mean": sum(final_coverage) / len(final_coverage)})
-    #     wandb.log({"final coverage max": max(final_coverage)})
-    #     wandb.log({"final coverage min": min(final_coverage)})
-    #     wandb.log({"max coverage mean": sum(max_coverage) / len(max_coverage)})
-    #     wandb.log({"max coverage max": max(max_coverage)})
-    #     wandb.log({"max coverage min": min(max_coverage)})
-    # with open("{}/completion_idx_final.json".format(save_path), "wb") as fp:
-    #     pickle.dump(completion_id_list, fp)
-    # wandb.log({"final_eval_on_env": avg_reward})
-    return 0
 
 
 if __name__ == "__main__":
