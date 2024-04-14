@@ -1,5 +1,6 @@
 import torch
 import matplotlib.pyplot as plt
+import os
 
 # define a dict of {index: name}
 index_to_name_dict = {
@@ -33,13 +34,6 @@ class MockEnv():
         self.state = None
         self.reference_state = self.data[self.env_indicies, self.history_stat_index:]
         self.reset()
-        # # init the state with the first obs_length observations
-        # self.state = self.init_state
-        # # state and action container
-        # self.state_list = torch.zeros((batch, 0, cfg.model.obs_dim)).to(cfg.device)
-        # self.action_list = torch.zeros((batch, 0, cfg.model.act_dim)).to(cfg.device)
-        # self.state_list = torch.cat([self.state_list, self.init_state], dim = 1)
-
 
     def reset(self):
         self.state = self.init_state
@@ -66,10 +60,6 @@ class MockEnv():
 
     def get_obs(self):
         return self.state   
-    
-    # def append_state_action(self):
-    #     self.state_list = torch.cat([self.state_list, self.state[:, -1:]], dim = 1)
-    #     self.action_list = torch.cat([self.action_list, self.action], dim = 1)
 
     def plot_different_state(self, plt_indicies = [6, 7, 8, 9, 10, 11], plt_time = 100):
         """ plot the difference between the state and the reference state in each environment"""
@@ -93,4 +83,9 @@ class MockEnv():
             "reference_state": self.reference_state,
             "history_stat_index": self.history_stat_index,
         }
-        torch.save(save_params["state_list"], path + "/rolling_out_data_from_{}.pt".format(self.history_stat_index))
+        if ".pt" not in path:
+            if not os.path.exists(path):
+                os.makedirs(path)
+            torch.save(save_params, path + "/rolling_out_data_from_{}.pt".format(self.history_stat_index))
+        else:
+            torch.save(save_params, path)
