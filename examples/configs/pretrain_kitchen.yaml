@@ -14,9 +14,11 @@ num_env_evals: 5
 num_final_evals: 20
 num_final_eval_per_goal: 5
 action_window_size: 1
+init_normalization: false
 
 wandb:
   project: "vq-bet"
+  run_name: "pretrain_kitchen"
   entity: ${env_vars.wandb_entity}
 
 device: cuda
@@ -56,6 +58,9 @@ vqvae_model:
   vqvae_groups: 2
   eval: false
   device: ${device}
+  normalization: ${init_normalization}
+  # load_dir: "/home/anqiao/MasterThesis/Checkpoints/VQ-BeT/kitchen_goalcond_pretrained/rvq/trained_vqvae.pt"
+
 
 
 goal_fn:

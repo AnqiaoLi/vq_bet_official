@@ -17,6 +17,7 @@ action_window_size: 1
 sequentially_select: false
 goal_dim: 60 # goal_dim: 0 non goal cond
 visual_input: false # true: image-based policy, false: state-based policy
+init_normalization: false
 vqvae_load_dir: "/home/anqiao/MasterThesis/Checkpoints/VQ-BeT/kitchen_goalcond_pretrained/rvq/trained_vqvae.pt"
 
 wandb:
@@ -55,6 +56,7 @@ data:
 save_every: 10
 save_path: "${env_vars.save_path}/checkpoints/${env.gym.id}/${now:%Y-%m-%d}/${now:%H-%M-%S}"
 load_path: "/home/anqiao/MasterThesis/Checkpoints/VQ-BeT/kitchen_goalcond_pretrained/vq-bet"
+# load_path: None
 
 model:
   _target_: vq_behavior_transformer.BehaviorTransformer
@@ -85,6 +87,7 @@ model:
     eval: true
     device: ${device}
     load_dir: ${vqvae_load_dir}
+    normalization: ${init_normalization}
   offset_loss_multiplier: 100
 
 goal_fn:

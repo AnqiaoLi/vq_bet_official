@@ -10,14 +10,15 @@ batch_size: 2048
 epochs: 1000
 eval_freq: 10
 eval_on_env_freq: 200
-num_env_evals: 100
+num_env_evals: 5
 num_final_evals: 100
 num_final_eval_per_goal: 1
 action_window_size: 1
 sequentially_select: false
 goal_dim: 0 # goal_dim: 0 non goal cond
 visual_input: false # true: image-based policy, false: state-based policy
-vqvae_load_dir: "YOUR_PATH_TO_PRETRAINED_VQVAE/trained_vqvae.pt"
+vqvae_load_dir: "/home/anqiao/MasterThesis/Checkpoints/VQ-BeT/kitchen_goalcond_pretrained/rvq/trained_vqvae.pt"
+init_normalization: false
 
 wandb:
   project: "vq-bet"
@@ -85,6 +86,7 @@ model:
     eval: true
     device: ${device}
     load_dir: ${vqvae_load_dir}
+    normalization: ${init_normalization}
   offset_loss_multiplier: 100
 
 goal_fn:
