@@ -32,6 +32,7 @@ class BehaviorTransformer(nn.Module):
         sequentially_select=False,
         visual_input=False,
         finetune_resnet=False,
+        res_iter = False,
     ):
         super().__init__()
         self._obs_dim = obs_dim
@@ -40,6 +41,7 @@ class BehaviorTransformer(nn.Module):
         self.obs_window_size = obs_window_size
         self.act_window_size = act_window_size
         self.sequentially_select = sequentially_select
+        self.res_iter = res_iter
         if goal_dim <= 0:
             self._cbet_method = self.GOAL_SPEC.unconditional
         elif obs_dim == goal_dim:
@@ -272,7 +274,19 @@ class BehaviorTransformer(nn.Module):
         sampled_offsets = einops.rearrange(
             sampled_offsets, "NT (W A) -> NT W A", W=self._vqvae_model.input_dim_h
         )
-        predicted_action = decoded_action + sampled_offsets
+        # if predict residual action
+        if self.res_iter:
+            res_prediction = decoded_action + sampled_offsets
+            res_prediction = einops.rearrange(res_prediction, "(N T) W A -> N T W A", T=obs_seq.shape[1])
+            base_observation = obs_seq.unsqueeze(2) # (N, T_o, 1, Do)
+            predicted_action = torch.tile(base_observation, (1, 1, self.act_window_size, 1))
+            for i in range(self._vqvae_model.input_dim_h):
+                # (N, T_o, i:, Do) + (N, T_o, 1, Do) -> (N, T_o, i:, Do)
+                predicted_action[:, :, i:, :] += res_prediction[:, :, i:i+1, :]
+            predicted_action = einops.rearrange(predicted_action, "N T W A -> (N T) W A")
+        else:
+            predicted_action = decoded_action + sampled_offsets
+        
         if action_seq is not None:
             n, total_w, act_dim = action_seq.shape
             act_w = self._vqvae_model.input_dim_h

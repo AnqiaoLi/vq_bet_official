@@ -12,6 +12,7 @@ from vqvae.vqvae import *
 from normalizer import Normalizer
 import wandb
 
+# config_name = "pretrain_oven"
 config_name = "pretrain_oven"
 
 
@@ -58,7 +59,7 @@ def main(cfg):
                 vq_loss_state, # codebook loss
                 vq_code, # codebook index
                 vqvae_recon_loss, # reconstruction loss, norm=2
-                raw_reon_loss # loss after denormalization, norm = 2
+                raw_recon_loss # loss after denormalization, norm = 2
             ) = vqvae_model.vqvae_update(act)  # N T D
 
             wandb.log({"pretrain/n_different_codes": len(torch.unique(vq_code))})
@@ -68,7 +69,7 @@ def main(cfg):
             wandb.log({"pretrain/encoder_loss": encoder_loss})
             wandb.log({"pretrain/vq_loss_state": vq_loss_state})
             wandb.log({"pretrain/vqvae_recon_loss": vqvae_recon_loss})
-            wandb.log({"pretrain/raw_reon_loss": raw_reon_loss})
+            wandb.log({"pretrain/raw_recon_loss": raw_recon_loss})
 
         if epoch % 10 == 0:
             state_dict = vqvae_model.state_dict()

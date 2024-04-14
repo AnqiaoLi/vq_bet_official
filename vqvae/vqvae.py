@@ -79,6 +79,7 @@ class VqVae:
             dim=self.n_latent_dims,
             num_quantizers=discrete_cfg["groups"],
             codebook_size=self.vqvae_n_embed,
+            threshold_ema_dead_code = 2
         ).to(self.device)
         self.embedding_dim = self.n_latent_dims
 
@@ -154,10 +155,10 @@ class VqVae:
         return state.to(self.device)
 
     def get_code(self, state, required_recon=False):
-        state = state / self.act_scale
         if self.normalization:
             assert self.normalizer is not None, "Normalizer is not set"
             state = self.normalizer.normalize({"act": state})['act']
+        state = state / self.act_scale
         state = self.preprocess(state)
         with torch.no_grad():
             state_rep = self.encoder(state)
@@ -184,10 +185,10 @@ class VqVae:
                 return state_vq, vq_code
 
     def vqvae_update(self, state):
-        state = state / self.act_scale
         if self.normalization:
             assert self.normalizer is not None, "Normalizer is not set"
             state = self.normalizer.normalize({"act": state})['act']
+        state = state / self.act_scale
         state = self.preprocess(state)
         # TODO: add normalization
         state_rep = self.encoder(state)
@@ -213,15 +214,17 @@ class VqVae:
             # reshape the state and dec_out to the original shape
             state = einops.rearrange(state, "N (T A) -> N T A", A=self.input_dim_w)
             dec_out = einops.rearrange(dec_out, "N (T A) -> N T A", A=self.input_dim_w)
-            state = self.normalizer.denormalize({"act": state})['act']
-            dec_out = self.normalizer.denormalize({"act": dec_out})['act']
-            raw_reon_loss = torch.nn.MSELoss()(state, dec_out)
+            state = self.normalizer.denormalize({"act": state * self.act_scale})['act']
+            dec_out = self.normalizer.denormalize({"act": dec_out * self.act_scale})['act']
+            raw_recon_loss = torch.nn.MSELoss()(state, dec_out)
+        else:
+            raw_recon_loss = torch.nn.MSELoss()(state*self.act_scale, dec_out*self.act_scale)
         return (
-            encoder_loss.clone().detach(),
+            encoder_loss.clone().detach(), # 1 norm reconstruction loss
             vq_loss_state.clone().detach(),
             vq_code,
             vqvae_recon_loss.item(),
-            raw_reon_loss.item(),
+            raw_recon_loss.item(),
         )
 
     def state_dict(self):
@@ -238,7 +241,8 @@ class VqVae:
         self.decoder.load_state_dict(state_dict["decoder"])
         self.vqvae_optimizer.load_state_dict(state_dict["optimizer"])
         self.vq_layer.load_state_dict(state_dict["vq_embedding"])
-        if state_dict["normalizer"] is not None:
+        if self.normalization:
+            assert state_dict["normalizer"] is not None, "Normalizer is not in the state_dict"
             self.normalizer = Normalizer()
             self.normalizer.load_params(state_dict["normalizer"])
         self.vq_layer.eval()
