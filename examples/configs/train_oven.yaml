@@ -9,20 +9,27 @@ eval_window_size: 10
 batch_size: 1024
 epochs: 1000
 eval_freq: 10
-eval_on_env_freq: 1
+eval_on_env_freq: 10
 num_env_evals: 20
 num_final_evals: 20
 num_final_eval_per_goal: 5
 action_window_size: 5
 sequentially_select: false
 action_mode: "f"
+noise_enhance_coef: 0.01
 visual_input: false # true: image-based policy, false: state-based policy
 # normalization scale= 10
 # vqvae_load_dir: "/home/anqiao/MasterThesis/Checkpoints/VQ-BeT/checkpoints/oven/2024-03-31/21-54-19/pretrain_oven/trained_vqvae.pt"
 # normalization scale = 1
-# vqvae_load_dir: "/home/anqiao/MasterThesis/Checkpoints/VQ-BeT/checkpoints/kitchen-v0/2024-03-28/00-32-31/effortless-frog-6/trained_vqvae.pt"
+# vqvae_load_dir: "/home/anqiao/MasterThesis/Checkpoints/VQ-BeT/checkpoints/oven/2024-04-05/19-51-20/pretrain_oven/trained_vqvae.pt"
 # full state
-vqvae_load_dir: "/home/anqiao/MasterThesis/Checkpoints/VQ-BeT/checkpoints/oven/2024-04-03/19-44-48/pretrain_oven/trained_vqvae.pt"
+# vqvae_load_dir: "/home/anqiao/MasterThesis/Checkpoints/VQ-BeT/checkpoints/oven/2024-04-03/19-44-48/pretrain_oven/trained_vqvae.pt"
+# full state and decrease vq_loss
+# vqvae_load_dir: "/home/anqiao/MasterThesis/Checkpoints/VQ-BeT/checkpoints/oven/2024-04-04/12-57-49/pretrain_oven/trained_vqvae.pt" 
+# full state
+# vqvae_load_dir: "/home/anqiao/MasterThesis/Checkpoints/VQ-BeT/checkpoints/oven/2024-04-05/18-59-36/pretrain_oven/trained_vqvae.pt"
+# res state different start state
+vqvae_load_dir: "/home/anqiao/MasterThesis/Checkpoints/VQ-BeT/checkpoints/oven/2024-04-14/19-30-48/pretrain_oven/trained_vqvae.pt"
 goal_dim: 0
 
 wandb:
@@ -50,7 +57,8 @@ env:
 data:
   _target_: dataset.get_alma_train_val
   # data_directory: ${env_vars.datasets.oven}
-  data_directory: /home/anqiao/MasterThesis/Data/OvenOpening/pt/output_fullstate
+  # data_directory: /home/anqiao/MasterThesis/Data/OvenOpening/pt/output_fullstate
+  data_directory: /home/anqiao/MasterThesis/Data/OvenOpening/pt/Task_2/output_fullstate
   goal_conditional: future
   window_size: ${window_size}
   future_seq_len: ${goal_window_size}
@@ -58,7 +66,6 @@ data:
   action_window_size: ${action_window_size}
   vqbet_get_future_action_chunk: true
   padding: "None"
-  noise_enhance_coe: 0.01
 
 save_every: 10
 save_path: "${env_vars.save_path}/checkpoints/${env.gym.id}/${now:%Y-%m-%d}/${now:%H-%M-%S}"
@@ -68,6 +75,13 @@ save_path: "${env_vars.save_path}/checkpoints/${env.gym.id}/${now:%Y-%m-%d}/${no
 # load_path: "/home/anqiao/MasterThesis/Checkpoints/VQ-BeT/checkpoints/kitchen-v0/2024-04-03/14-32-04/dark-darkness-42"
 # load_path: "/home/anqiao/MasterThesis/Checkpoints/VQ-BeT/checkpoints/kitchen-v0/2024-04-03/14-32-04/dark-darkness-42"
 # load_path: "/home/anqiao/MasterThesis/Checkpoints/VQ-BeT/checkpoints/kitchen-v0/2024-04-03/15-30-42/dashing-fire-44"
+# load_path: "/home/anqiao/MasterThesis/Checkpoints/VQ-BeT/checkpoints/kitchen-v0/2024-04-03/20-29-35/ethereal-terrain-53"
+# load_path: "/home/anqiao/MasterThesis/Checkpoints/VQ-BeT/checkpoints/kitchen-v0/2024-04-03/21-23-23/lucky-pine-55"
+
+# res-iter
+# load_path: "/home/anqiao/MasterThesis/Checkpoints/VQ-BeT/checkpoints/kitchen-v0/2024-04-05/14-54-33/captain-directive-63"
+# load_path: "/home/anqiao/MasterThesis/Checkpoints/VQ-BeT/checkpoints/kitchen-v0/2024-04-05/20-44-40/captain-enterprise-87"
+# load_path: "/home/anqiao/MasterThesis/Checkpoints/VQ-BeT/checkpoints/kitchen-v0/2024-04-07/00-43-27/nagus-nimoy-93"
 load_path: None
 
 
@@ -79,6 +93,7 @@ model:
   obs_window_size: ${window_size}
   act_window_size: ${action_window_size}
   sequentially_select: ${sequentially_select}
+  res_iter: true
   gpt_model:
     _target_: vq_behavior_transformer.GPT
     config:
@@ -100,6 +115,7 @@ model:
     device: ${device}
     load_dir: ${vqvae_load_dir}
     act_scale: 1
+    normalization: true
   offset_loss_multiplier: 100
   secondary_code_multiplier: 1
 

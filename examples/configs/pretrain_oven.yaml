@@ -35,7 +35,8 @@ env:
 
 data:
   _target_: dataset.get_alma_train_val
-  data_directory: /home/anqiao/MasterThesis/Data/OvenOpening/pt/output_fullstate
+  # data_directory: /home/anqiao/MasterThesis/Data/OvenOpening/pt/output_res
+  data_directory: /home/anqiao/MasterThesis/Data/OvenOpening/pt/Task_2/output_res
   goal_conditional: future
   window_size: ${window_size}
   future_seq_len: ${goal_window_size}
@@ -64,7 +65,8 @@ vqvae_model:
   vqvae_groups: 2
   eval: false
   device: ${device}
-  encoder_loss_multiplier: 1.0
+  # TODO: check necessity of this
+  encoder_loss_multiplier: 3
   normalization: ${init_normalization}
   act_scale: 1.0
   # load_dir: "/home/anqiao/MasterThesis/Checkpoints/VQ-BeT/checkpoints/oven/2024-03-31/21-54-19/pretrain_oven/trained_vqvae.pt"
