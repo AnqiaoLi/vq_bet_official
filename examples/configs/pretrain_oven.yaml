@@ -19,6 +19,7 @@ wandb:
   project: "vq-bet"
   entity: ${env_vars.wandb_entity}
   run_name: "pretrain_oven"
+  tags: ["pretrain_vq_vae"]
 
 device: cuda
 optim:
@@ -36,7 +37,7 @@ env:
 data:
   _target_: dataset.get_alma_train_val
   # data_directory: /home/anqiao/MasterThesis/Data/OvenOpening/pt/output_res
-  data_directory: /home/anqiao/MasterThesis/Data/OvenOpening/pt/Task_2/output_res
+  data_directory: /home/anqiao/MasterThesis/Data/OvenOpening/pt/Task_4/data/output_res
   goal_conditional: future
   window_size: ${window_size}
   future_seq_len: ${goal_window_size}

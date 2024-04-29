@@ -30,7 +30,7 @@ def main(cfg):
         entity=cfg.wandb.entity,
         config=OmegaConf.to_container(cfg, resolve=True),
         name=cfg.wandb.run_name,
-        tags=["with normalization"],
+        tags= cfg.wandb.tags,
         # mode="disabled"
     )
     run_name = run.name or "Offline"
