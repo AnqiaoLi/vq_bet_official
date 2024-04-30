@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 import einops
 
 import wandb
-from video import VideoRecorder
+# from video import VideoRecorder
 import pickle
 from Mock_env import MockEnv
 
@@ -51,7 +51,7 @@ def main(cfg):
         betas=cfg.optim.betas,
     )
     # env = hydra.utils.instantiate(cfg.env.gym)
-    goal_fn = hydra.utils.instantiate(cfg.goal_fn)
+    # goal_fn = hydra.utils.instantiate(cfg.goal_fn)
     run = wandb.init(
         project=cfg.wandb.project,
         entity=cfg.wandb.entity,
@@ -61,7 +61,7 @@ def main(cfg):
     run_name = run.name or "Offline"
     save_path = Path(cfg.save_path) / run_name
     save_path.mkdir(parents=True, exist_ok=False)
-    video = VideoRecorder(dir_name=save_path)
+    # video = VideoRecorder(dir_name=save_path)
 
     @torch.no_grad()
     def eval_on_mockenv(
