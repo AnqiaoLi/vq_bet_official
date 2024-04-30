@@ -12,7 +12,6 @@ from omegaconf import OmegaConf
 import matplotlib.pyplot as plt
 import einops
 
-import kitchen_env
 import wandb
 from video import VideoRecorder
 import pickle
@@ -20,10 +19,6 @@ from Mock_env import MockEnv
 
 
 config_name = "train_oven"
-
-if "MUJOCO_GL" not in os.environ:
-    os.environ["MUJOCO_GL"] = "egl"
-
 
 def seed_everything(random_seed: int):
     np.random.seed(random_seed)
