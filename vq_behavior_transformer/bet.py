@@ -375,11 +375,14 @@ class BehaviorTransformer(nn.Module):
                     cbet_logits[:, 0, :],
                     action_bins[:, 0],
                 )
-                cbet_loss2 = self._criterion(  # F.cross_entropy
-                    cbet_logits[:, 1, :],
-                    action_bins[:, 1],
-                )
-            cbet_loss = cbet_loss1 * 5 + cbet_loss2 * self._secondary_code_multiplier
+                cbet_loss = cbet_loss1 * 5
+                if cbet_logits.shape[1] > 1:
+                    cbet_loss2 = self._criterion(  # F.cross_entropy
+                        cbet_logits[:, 1, :],
+                        action_bins[:, 1],
+                    )
+                    cbet_loss += cbet_loss2 * self._secondary_code_multiplier
+            # cbet_loss = cbet_loss1 * 5 + cbet_loss2 * self._secondary_code_multiplier
 
             equal_total_code_rate = (
                 torch.sum(
@@ -392,9 +395,12 @@ class BehaviorTransformer(nn.Module):
             equal_single_code_rate = torch.sum(
                 (action_bins[:, 0] == sampled_centers[:, 0]).int()
             ) / (NT)
-            equal_single_code_rate2 = torch.sum(
-                (action_bins[:, 1] == sampled_centers[:, 1]).int()
-            ) / (NT)
+            if self._G > 1:
+                equal_single_code_rate2 = torch.sum(
+                    (action_bins[:, 1] == sampled_centers[:, 1]).int()
+                ) / (NT)
+            else:
+                equal_single_code_rate2 = 0.0
 
             loss = cbet_loss + self._offset_loss_multiplier * offset_loss
             loss_dict = {

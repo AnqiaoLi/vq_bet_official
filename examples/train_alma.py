@@ -88,7 +88,7 @@ def main(cfg):
         if (epoch % cfg.eval_on_env_freq == 0):
             train_env.reset()
             eval_on_mockenv(cfg)
-            fig = train_env.plot_different_state(plt_indicies = [6, 7, 8, 9, 10, 11], plt_time = 300)
+            fig = train_env.plot_different_state(plt_indicies = [6, 7, 8, 9, 10, 11], plt_time = 1000)
             wandb.log({"eval_on_mockenv": wandb.Image(fig)})
             del fig
 
