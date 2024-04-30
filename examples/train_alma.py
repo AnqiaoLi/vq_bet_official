@@ -50,7 +50,7 @@ def main(cfg):
         learning_rate=cfg.optim.lr,
         betas=cfg.optim.betas,
     )
-    env = hydra.utils.instantiate(cfg.env.gym)
+    # env = hydra.utils.instantiate(cfg.env.gym)
     goal_fn = hydra.utils.instantiate(cfg.goal_fn)
     run = wandb.init(
         project=cfg.wandb.project,
