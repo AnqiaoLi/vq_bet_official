@@ -47,7 +47,7 @@ class Normalizer:
                 input_range = self.params_dict[key]["max"] - self.params_dict[key]["min"]
                 output_range = self.params_dict[key]["output_max"] - self.params_dict[key]["output_min"]
                 ndata[key] = (data[key] - self.params_dict[key]["min"]) / input_range * output_range + self.params_dict[key]["output_min"]
-                ndata[key][:, :, input_range == 0] = 0
+                ndata[key][:, :, input_range == 0] = data[key][:, :, input_range == 0] - self.params_dict[key]["min"][input_range == 0]
             elif self.mode == "gaussian":
                 ndata[key] = (data[key] - self.params_dict[key]["mean"]) / self.params_dict[key]["std"]
         return ndata
@@ -60,6 +60,7 @@ class Normalizer:
                 input_range = self.params_dict[key]["max"] - self.params_dict[key]["min"]
                 output_range = self.params_dict[key]["output_max"] - self.params_dict[key]["output_min"]
                 data[key] = (ndata[key] - self.params_dict[key]["output_min"]) / output_range * input_range + self.params_dict[key]["min"]
+                data[key][:, :, input_range == 0] = ndata[key][:, :, input_range == 0] + self.params_dict[key]["min"][input_range == 0]
             elif self.mode == "gaussian":
                 data[key] = ndata[key] * self.params_dict[key]["std"] + self.params_dict[key]["mean"]
         return data
