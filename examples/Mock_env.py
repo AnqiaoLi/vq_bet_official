@@ -75,6 +75,9 @@ class MockEnv():
             action: torch.tensor, shape (batch_size, action_dim)
             mode: str, "r" or "f", "r" for residual, "f" for full state
         """
+        # if action includes contact, remove it
+        if action.shape[-1] > self.state.shape[-1]:
+            action = action[:, :, :self.state.shape[-1]]
         # Debug:keep the angle of the oven unchanged
         if self.freeze_angle:
                 action[:, 0, -2] = self.state[:, -1, -2]
