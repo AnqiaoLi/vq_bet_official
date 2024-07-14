@@ -32,7 +32,7 @@ def main(cfg):
     print(OmegaConf.to_yaml(cfg))
     seed_everything(cfg.seed)
     train_data, test_data = hydra.utils.instantiate(cfg.data)
-    train_env = MockEnv(cfg, train_data, num_env=2, history_stat_index=0)
+    train_env = MockEnv(cfg, train_data, num_env=50, history_stat_index=0)
     train_loader = torch.utils.data.DataLoader(
         train_data, batch_size=cfg.batch_size, shuffle=True, pin_memory=False
     )
@@ -83,14 +83,18 @@ def main(cfg):
         return train_env.state_list, train_env.action_list
 
 
-    for epoch in tqdm.trange(cfg.epochs):
+    for epoch in tqdm.trange(cfg.epochs, leave=False):
         cbet_model.eval()
         if (epoch % cfg.eval_on_env_freq == 0):
             train_env.reset()
-            eval_on_mockenv(cfg)
-            fig = train_env.plot_different_state(plt_indicies = [6, 7, 8, 9, 10, 11], plt_time = 1000)
-            wandb.log({"eval_on_mockenv": wandb.Image(fig)})
-            del fig
+            eval_on_mockenv(cfg, eval_steps=2000)
+            fig_1 = train_env.plot_different_state(plt_indicies = [6, 7, 8, 30, 31], plt_time = 2000, separate_env=True)
+            wandb.log({"eval_on_mockenv": wandb.Image(fig_1)})
+            plt.close(fig_1)
+            fig_2 = train_env.plot_different_state(plt_indicies = [30, 31], plt_time = 2000, separate_env=False)
+            wandb.log({"object_status": wandb.Image(fig_2)})
+            del fig_1
+            del fig_2
 
         if epoch % cfg.eval_freq == 0:
             total_loss = 0
@@ -117,7 +121,7 @@ def main(cfg):
             wandb.log({"eval/epoch_wise_action_diff_mean_res2": action_diff_mean_res2})
             wandb.log({"eval/epoch_wise_action_diff_max": action_diff_max})
 
-        for data in tqdm.tqdm(train_loader):
+        for data in tqdm.tqdm(train_loader, leave=False):
             if epoch < (cfg.epochs * 0.5):
                 optimizer["optimizer1"].zero_grad()
                 optimizer["optimizer2"].zero_grad()
