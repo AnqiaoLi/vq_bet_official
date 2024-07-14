@@ -95,6 +95,7 @@ def main(cfg):
             wandb.log({"object_status": wandb.Image(fig_2)})
             del fig_1
             del fig_2
+            train_env.reset()
 
         if epoch % cfg.eval_freq == 0:
             total_loss = 0
