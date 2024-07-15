@@ -24,8 +24,8 @@ class Normalizer:
         elif self.mode == "gaussian":
             for key, value in data.items():
                 self.params_dict[key] = {
-                    "mean": data[key].mean(axis = 0).values,
-                    "std": data[key].std(axis = 0).values,
+                    "mean": data[key].mean(axis = 0),
+                    "std": data[key].std(axis = 0),
                 }
         
     def fit(self, data, output_max = 1, output_min = -1):
