@@ -95,6 +95,11 @@ class BehaviorTransformer(nn.Module):
         self._criterion = FocalLoss(gamma=gamma)
         self.visual_input = visual_input
         self.finetune_resnet = finetune_resnet
+        # if self.predict_contact:
+        #     self.contact_classifier = nn.Sequential(
+        #         nn.Linear(5, 5),
+        #         nn.Softmax(),
+            
         if visual_input:
             import torchvision.models as models
             import torchvision.transforms as transforms
@@ -250,7 +255,7 @@ class BehaviorTransformer(nn.Module):
                 "(NT G) 1 -> NT G",
                 NT=NT,
             )
-
+            # sampled_centers = cbet_probs.max(axis=-1)[1]
         indices = (
             torch.arange(NT).unsqueeze(1).cuda(),
             torch.arange(self._G).unsqueeze(0).cuda(),
@@ -282,8 +287,12 @@ class BehaviorTransformer(nn.Module):
             predicted_action = torch.tile(base_observation, (1, 1, self.act_window_size, 1))
             for i in range(self._vqvae_model.input_dim_h):
                 # (N, T_o, i:, Do) + (N, T_o, 1, Do) -> (N, T_o, i:, Do)
-                predicted_action[:, :, i:, :] += res_prediction[:, :, i:i+1, :]
+                predicted_action[:, :, i:, :] += res_prediction[:, :, i:i+1, :self._obs_dim]    
             predicted_action = einops.rearrange(predicted_action, "N T W A -> (N T) W A")
+            res_prediction = einops.rearrange(res_prediction, "N T W A -> (N T) W A")
+            # contact
+            predicted_contact = res_prediction[:, :, self._obs_dim:] #((N*T_o) aw, 5)
+            predicted_action = torch.cat((predicted_action, predicted_contact), dim=-1)
         else:
             predicted_action = decoded_action + sampled_offsets
         

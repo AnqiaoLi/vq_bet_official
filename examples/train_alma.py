@@ -88,10 +88,10 @@ def main(cfg):
         if (epoch % cfg.eval_on_env_freq == 0):
             train_env.reset()
             eval_on_mockenv(cfg, eval_steps=2000)
-            fig_1 = train_env.plot_different_state(plt_indicies = [6, 7, 8, 30, 31], plt_time = 2000, separate_env=True)
+            fig_1 = train_env.plot_different_state(plt_indicies = [6, 7, 8, 30, 31, 36], plt_time = 2000, separate_env=True)
             wandb.log({"eval_on_mockenv": wandb.Image(fig_1)})
             plt.close(fig_1)
-            fig_2 = train_env.plot_different_state(plt_indicies = [30, 31], plt_time = 2000, separate_env=False)
+            fig_2 = train_env.plot_different_state(plt_indicies = [30, 31, 36], plt_time = 2000, separate_env=False)
             wandb.log({"object_status": wandb.Image(fig_2)})
             del fig_1
             del fig_2
