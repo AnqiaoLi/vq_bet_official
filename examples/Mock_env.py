@@ -25,12 +25,14 @@ index_to_name_dict_obs = {
     36: "ee_quaternion_y",
     37: "ee_quaternion_z",
     38: "ee_quaternion_w",
-    39: "handle_position_x",
-    40: "handle_position_y",
-    41: "handle_position_z",
-    42: "ee_handle_distance",
 }
 
+index_to_name_dict_add = {
+    0: "handle_position_x",
+    1: "handle_position_y",
+    2: "handle_position_z",
+    3: "ee_handle_distance",
+}
 # index_to_name_dict_contact = {
 #     0: "contact_0",
 #     1: "contact_1",
@@ -44,6 +46,8 @@ class MockEnv():
     def __init__(self, cfg, data, num_env = 2, history_stat_index = 0, freeze_angle = False):
         self.num_env = num_env
         self.data = data.dataset.dataset.observations
+        self.obs_dim = self.data.shape[-1]
+        self.act_dim = data.dataset.dataset.actions.shape[-1]
         self.obs_length = cfg.model.obs_window_size
         self.history_stat_index = history_stat_index
         self.freeze_angle = freeze_angle
@@ -57,7 +61,7 @@ class MockEnv():
         self.init_state = self.data[self.env_indicies, self.history_stat_index:self.obs_length + self.history_stat_index]
         self.state = None
         self.reference_state = self.data[self.env_indicies, self.history_stat_index:]
-        # self.reference_contact = data.dataset.dataset.actions[self.env_indicies, self.history_stat_index:, -5:]
+        self.reference_add = data.dataset.dataset.actions[self.env_indicies, self.history_stat_index:, self.init_state.shape[-1]:]
         self.reset()
 
     ##########################################
@@ -89,7 +93,7 @@ class MockEnv():
         self.state_list = torch.zeros((self.num_env, 0, self.data.shape[-1])).to(self.device)
         self.action_list = torch.zeros((self.num_env, 0, self.data.shape[-1])).to(self.device)
         self.state_list = torch.cat([self.state_list, self.init_state], dim = 1)        
-        # self.contact_list = torch.zeros((self.num_env, 0, 5)).to(self.device)
+        self.add_list = torch.zeros((self.num_env, 0, self.act_dim - self.obs_dim)).to(self.device)
 
     def step(self, action, mode = "r"):
         """ step the state with transformer output 
@@ -98,9 +102,11 @@ class MockEnv():
             mode: str, "r" or "f", "r" for residual, "f" for full state
         """
         # if action includes contact, remove it
-        # if action.shape[-1] > self.state.shape[-1]:
-        #     contact = action[:, :, self.state_list.shape[-1]:]
-        #     action = action[:, :, :self.state.shape[-1]]
+        if action.shape[-1] > self.state.shape[-1]:
+            add_state = action[:, :, self.state_list.shape[-1]:]
+            action = action[:, :, :self.state.shape[-1]]
+            self.add_list = torch.cat([self.add_list, add_state], dim = 1)
+
         # Debug:keep the angle of the oven unchanged
         if self.freeze_angle:
                 action[:, 0, -2] = self.state[:, -1, -2]
@@ -130,15 +136,15 @@ class MockEnv():
             plt.rcParams['font.size'] = text_size
             for i in range(plot_env_num):
                 for j in range(len(plt_indicies)):
-                    # if plt_indicies[j] < self.state_list.shape[-1]:
-                    axs[i, j].plot(self.state_list[i, :plt_time, plt_indicies[j]].cpu().detach().numpy(), label = "state", linewidth = line_width)
-                    axs[i, j].plot(self.reference_state[i, :plt_time, plt_indicies[j]].cpu().detach().numpy(), label = "reference", linewidth = line_width)
-                    axs[i, j].set_title(f"env {i}, {index_to_name_dict_obs[plt_indicies[j]]}")
-                    # else:
-                    #     contact_index = plt_indicies[j] - self.state_list.shape[-1]
-                    #     axs[i, j].scatter(range(self.contact_list[i, :plt_time, contact_index].shape[0]), self.contact_list[i, :plt_time, contact_index].cpu().detach().numpy(), label = "contact", linewidth = line_width)
-                    #     axs[i, j].scatter(range(self.reference_contact[i, :plt_time, contact_index].shape[0]), self.reference_contact[i, :plt_time, contact_index].cpu().detach().numpy(), label = "reference", linewidth = line_width)
-                    #     axs[i, j].set_title(f"env {i}, {index_to_name_dict_contact[contact_index]}")
+                    if plt_indicies[j] < self.state_list.shape[-1]:
+                        axs[i, j].plot(self.state_list[i, :plt_time, plt_indicies[j]].cpu().detach().numpy(), label = "state", linewidth = line_width)
+                        axs[i, j].plot(self.reference_state[i, :plt_time, plt_indicies[j]].cpu().detach().numpy(), label = "reference", linewidth = line_width)
+                        axs[i, j].set_title(f"env {i}, {index_to_name_dict_obs[plt_indicies[j]]}")
+                    else:
+                        add_state_index = plt_indicies[j] - self.state_list.shape[-1]
+                        axs[i, j].plot(range(self.add_list[i, :plt_time, add_state_index].shape[0]), self.add_list[i, :plt_time, add_state_index].cpu().detach().numpy(), label = "addional_state", linewidth = line_width)
+                        axs[i, j].plot(range(self.reference_add[i, :plt_time, add_state_index].shape[0]), self.reference_add[i, :plt_time, add_state_index].cpu().detach().numpy(), label = "reference", linewidth = line_width)
+                        axs[i, j].set_title(f"env {i}, {index_to_name_dict_add[add_state_index]}")
             # plt.show()
             plt.legend()
         else:
@@ -148,13 +154,13 @@ class MockEnv():
             plt.rcParams['font.size'] = text_size
             for j in range(len(plt_indicies)):
                 for i in range(plot_env_num):
-                    # if plt_indicies[j] < self.state_list.shape[-1]:
-                    axs[j].plot(self.state_list[i, :plt_time, plt_indicies[j]].cpu().detach().numpy(), linewidth = line_width)
-                    axs[j].set_title(f"{index_to_name_dict_obs[plt_indicies[j]]}")
-                    # else:
-                        # contact_index = plt_indicies[j] - self.state_list.shape[-1]
-                        # axs[j].scatter(range(self.contact_list[i, :plt_time, contact_index].shape[0]), self.contact_list[i, :plt_time, contact_index].cpu().detach().numpy(), linewidth = line_width)
-                        # axs[j].set_title(f"{index_to_name_dict_contact[contact_index]}")
+                    if plt_indicies[j] < self.state_list.shape[-1]:
+                        axs[j].plot(self.state_list[i, :plt_time, plt_indicies[j]].cpu().detach().numpy(), linewidth = line_width)
+                        axs[j].set_title(f"{index_to_name_dict_obs[plt_indicies[j]]}")
+                    else:
+                        add_state_index = plt_indicies[j] - self.state_list.shape[-1]
+                        axs[j].scatter(range(self.state_list[i, :plt_time, add_state_index].shape[0]), self.state_list[i, :plt_time, add_state_index].cpu().detach().numpy(), linewidth = line_width)
+                        axs[j].set_title(f"{index_to_name_dict_add[add_state_index]}")
                     
                     # axs[j].plot(self.state_list[i, :plt_time, plt_indicies[j]].cpu().detach().numpy(), linewidth = line_width)
                     # # axs[j].plot(self.reference_state[i, :plt_time, plt_indicies[j]].cpu().detach().numpy(), label = "reference", linewidth = line_width)

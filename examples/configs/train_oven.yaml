@@ -79,7 +79,7 @@ env:
       _target_: gym.make
       id: kitchen-v0
     visual_input: ${visual_input}
-  obs_dim: 43
+  obs_dim: 39
   act_dim: 43
   goal_dim: ${goal_dim}
 
