@@ -33,6 +33,7 @@ class BehaviorTransformer(nn.Module):
         visual_input=False,
         finetune_resnet=False,
         res_iter = False,
+        uniformly_downsample=1,
     ):
         super().__init__()
         self._obs_dim = obs_dim
@@ -42,6 +43,9 @@ class BehaviorTransformer(nn.Module):
         self.act_window_size = act_window_size
         self.sequentially_select = sequentially_select
         self.res_iter = res_iter
+        self.uniformly_downsample = uniformly_downsample
+        self.observation_indices = torch.arange(obs_window_size - 1, 0, -self.uniformly_downsample).flip(0)
+        self.obs_window_size = self.obs_window_size//self.uniformly_downsample
         if goal_dim <= 0:
             self._cbet_method = self.GOAL_SPEC.unconditional
         elif obs_dim == goal_dim:
@@ -134,6 +138,8 @@ class BehaviorTransformer(nn.Module):
         action_seq: Optional[torch.Tensor],
     ) -> Tuple[Optional[torch.Tensor], Optional[torch.Tensor], Dict[str, float]]:
         # Assume dimensions are N T D for N sequences of T timesteps with dimension D.
+        # sample the observation 
+        obs_seq = obs_seq[:, self.observation_indices, :]
         if self.visual_input:
             obs_seq = obs_seq.cuda()
             if obs_seq.ndim == 3:
@@ -300,10 +306,12 @@ class BehaviorTransformer(nn.Module):
             n, total_w, act_dim = action_seq.shape
             act_w = self._vqvae_model.input_dim_h
             obs_w = total_w + 1 - act_w
+            obs_w = obs_w // self.uniformly_downsample
             output_shape = (n, obs_w, act_w, act_dim)
             output = torch.empty(output_shape).to(action_seq.device)
             for i in range(obs_w):
-                output[:, i, :, :] = action_seq[:, i : i + act_w, :]
+                # output[:, i, :, :] = action_seq[:, i : i + act_w, :]
+                output[:, i, :, :] = action_seq[:, self.observation_indices[i] : self.observation_indices[i] + act_w, :]
             action_seq = einops.rearrange(output, "N T W A -> (N T) W A")
             # Figure out the loss for the actions.
             # First, we need to find the closest cluster center for each action.

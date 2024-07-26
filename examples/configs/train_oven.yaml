@@ -142,6 +142,7 @@ model:
   act_window_size: ${action_window_size}
   sequentially_select: ${sequentially_select}
   res_iter: true
+  uniformly_downsample: 5
   gpt_model:
     _target_: vq_behavior_transformer.GPT
     config:
