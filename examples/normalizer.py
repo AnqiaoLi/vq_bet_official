@@ -21,6 +21,16 @@ class Normalizer:
                     "output_max": output_max,
                     "output_min": output_min,
                 }
+        elif self.mode == "limits_20":
+            for key, value in data.items():
+                flat_tensor = data[key].flatten()
+                sorted_tensor, _ = torch.sort(data[key], dim=0)
+                self.params_dict[key] = {
+                    "min": sorted_tensor[int(sorted_tensor.shape[0] * 0.1)],
+                    "max": sorted_tensor[int(sorted_tensor.shape[0] * 0.9)],
+                    "output_max": output_max,
+                    "output_min": output_min,
+                }
         elif self.mode == "gaussian":
             for key, value in data.items():
                 self.params_dict[key] = {
@@ -43,7 +53,7 @@ class Normalizer:
         # data: {key: (N, D)}
         ndata = {}
         for key, value in data.items():
-            if self.mode == "limits":
+            if self.mode == "limits" or self.mode == "limits_20":
                 input_range = self.params_dict[key]["max"] - self.params_dict[key]["min"]
                 output_range = self.params_dict[key]["output_max"] - self.params_dict[key]["output_min"]
                 ndata[key] = (data[key] - self.params_dict[key]["min"]) / input_range * output_range + self.params_dict[key]["output_min"]
@@ -56,7 +66,7 @@ class Normalizer:
         # ndata: {key: (N, D)}
         data = {}
         for key, value in ndata.items():
-            if self.mode == "limits":
+            if self.mode == "limits" or self.mode == "limits_20":
                 input_range = self.params_dict[key]["max"] - self.params_dict[key]["min"]
                 output_range = self.params_dict[key]["output_max"] - self.params_dict[key]["output_min"]
                 data[key] = (ndata[key] - self.params_dict[key]["output_min"]) / output_range * input_range + self.params_dict[key]["min"]
