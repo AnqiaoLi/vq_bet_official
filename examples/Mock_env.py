@@ -159,7 +159,7 @@ class MockEnv():
                         axs[j].set_title(f"{index_to_name_dict_obs[plt_indicies[j]]}")
                     else:
                         add_state_index = plt_indicies[j] - self.state_list.shape[-1]
-                        axs[j].scatter(range(self.state_list[i, :plt_time, add_state_index].shape[0]), self.state_list[i, :plt_time, add_state_index].cpu().detach().numpy(), linewidth = line_width)
+                        axs[j].scatter(range(self.add_list[i, :plt_time, add_state_index].shape[0]), self.add_list[i, :plt_time, add_state_index].cpu().detach().numpy(), linewidth = line_width)
                         axs[j].set_title(f"{index_to_name_dict_add[add_state_index]}")
                     
                     # axs[j].plot(self.state_list[i, :plt_time, plt_indicies[j]].cpu().detach().numpy(), linewidth = line_width)

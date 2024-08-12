@@ -7,6 +7,7 @@ import hydra
 import numpy as np
 import torch
 from torch.optim.lr_scheduler import LambdaLR
+from lr_scheduler import get_scheduler_groups
 import tqdm
 from omegaconf import OmegaConf
 import matplotlib.pyplot as plt
@@ -50,6 +51,17 @@ def main(cfg):
         learning_rate=cfg.optim.lr,
         betas=cfg.optim.betas,
     )
+    lr_scheduler = get_scheduler_groups(
+        "cosine",
+        optimizer=optimizer,
+        num_warmup_steps=10,
+        num_training_steps=(
+            len(train_loader) * cfg.epochs),
+        # pytorch assumes stepping LRScheduler every epoch
+        # however huggingface diffusers steps it every batch
+        last_epoch=-1,
+        sync_lr = cfg.optim.sync_lr
+    )
     # env = hydra.utils.instantiate(cfg.env.gym)
     # goal_fn = hydra.utils.instantiate(cfg.goal_fn)
     run = wandb.init(
@@ -62,6 +74,8 @@ def main(cfg):
     save_path = Path(cfg.save_path) / run_name
     save_path.mkdir(parents=True, exist_ok=False)
     # video = VideoRecorder(dir_name=save_path)
+
+    global_train_step = 0
 
     @torch.no_grad()
     def eval_on_mockenv(
@@ -89,10 +103,10 @@ def main(cfg):
             train_env.reset()
             eval_on_mockenv(cfg, eval_steps=2000)
             fig_1 = train_env.plot_different_state(plt_indicies = [6, 7, 8, 30, 31, 42], plt_time = 10, separate_env=True)
-            wandb.log({"eval_on_mockenv": wandb.Image(fig_1)})
+            wandb.log({"eval_on_mockenv": wandb.Image(fig_1)}, step = global_train_step)
             plt.close(fig_1)
             fig_2 = train_env.plot_different_state(plt_indicies = [30, 31, 42], plt_time = 10, separate_env=False)
-            wandb.log({"object_status": wandb.Image(fig_2)})
+            wandb.log({"object_status": wandb.Image(fig_2)}, step = global_train_step)
             del fig_1
             del fig_2
             train_env.reset()
@@ -109,18 +123,18 @@ def main(cfg):
                     obs, act, goal = (x.to(cfg.device) for x in data)
                     predicted_act, loss, loss_dict = cbet_model(obs, goal, act)
                     total_loss += loss.item()
-                    wandb.log({"eval/{}".format(x): y for (x, y) in loss_dict.items()})
+                    wandb.log({"eval/{}".format(x): y for (x, y) in loss_dict.items()}, step = global_train_step)
                     action_diff += loss_dict["action_diff"]
                     action_diff_tot += loss_dict["action_diff_tot"]
                     action_diff_mean_res1 += loss_dict["action_diff_mean_res1"]
                     action_diff_mean_res2 += loss_dict["action_diff_mean_res2"]
                     action_diff_max += loss_dict["action_diff_max"]
             print(f"Test loss: {total_loss / len(test_loader)}")
-            wandb.log({"eval/epoch_wise_action_diff": action_diff})
-            wandb.log({"eval/epoch_wise_action_diff_tot": action_diff_tot})
-            wandb.log({"eval/epoch_wise_action_diff_mean_res1": action_diff_mean_res1})
-            wandb.log({"eval/epoch_wise_action_diff_mean_res2": action_diff_mean_res2})
-            wandb.log({"eval/epoch_wise_action_diff_max": action_diff_max})
+            wandb.log({"eval/epoch_wise_action_diff": action_diff}, step = global_train_step)
+            wandb.log({"eval/epoch_wise_action_diff_tot": action_diff_tot}, step = global_train_step)
+            wandb.log({"eval/epoch_wise_action_diff_mean_res1": action_diff_mean_res1}, step = global_train_step)
+            wandb.log({"eval/epoch_wise_action_diff_mean_res2": action_diff_mean_res2}, step = global_train_step)
+            wandb.log({"eval/epoch_wise_action_diff_max": action_diff_max}, step = global_train_step)
 
         for data in tqdm.tqdm(train_loader, leave=False):
             if epoch < (cfg.epochs * 0.5):
@@ -133,13 +147,22 @@ def main(cfg):
             if cfg.noise_enhance_coef > 0:
                 obs += torch.randn_like(obs) * cfg.noise_enhance_coef
             predicted_act, loss, loss_dict = cbet_model(obs, goal, act)
-            wandb.log({"train/{}".format(x): y for (x, y) in loss_dict.items()})
+            wandb.log({"train/{}".format(x): y for (x, y) in loss_dict.items()}, step = global_train_step)
+            wandb.log({"train/lr_scheduler1": lr_scheduler["lr_scheduler1"].get_last_lr()[0]}, step = global_train_step)
+            wandb.log({"train/lr_scheduler2": lr_scheduler["lr_scheduler2"].get_last_lr()[0]}, step = global_train_step)
             loss.backward()
             if epoch < (cfg.epochs * 0.5):
                 optimizer["optimizer1"].step()
                 optimizer["optimizer2"].step()
+                lr_scheduler["lr_scheduler1"].step()
+                lr_scheduler["lr_scheduler2"].step()
             else:
+                # only optimize the offset model
                 optimizer["optimizer2"].step()
+                lr_scheduler["lr_scheduler2"].step()
+
+            global_train_step += 1
+
 
         if epoch % cfg.save_every == 0:
             cbet_model.save_model(save_path)
