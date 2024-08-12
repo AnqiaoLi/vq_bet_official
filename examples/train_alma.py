@@ -54,7 +54,7 @@ def main(cfg):
     lr_scheduler = get_scheduler_groups(
         "cosine",
         optimizer=optimizer,
-        num_warmup_steps=10,
+        num_warmup_steps=cfg.optim.lr_num_warmup_steps,
         num_training_steps=(
             len(train_loader) * cfg.epochs),
         # pytorch assumes stepping LRScheduler every epoch
