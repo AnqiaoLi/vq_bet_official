@@ -10,12 +10,14 @@ import tqdm
 from omegaconf import OmegaConf
 import einops
 import matplotlib.pyplot as plt
+import time
 
 import kitchen_env
 import wandb
 from video import VideoRecorder
 import pickle
 from Mock_env import MockEnv
+import os
 
 config_name = "train_oven"
 
@@ -35,7 +37,7 @@ def main(cfg):
     print(OmegaConf.to_yaml(cfg))
     seed_everything(cfg.seed)
     train_data, test_data = hydra.utils.instantiate(cfg.data)
-    train_env = MockEnv(cfg, train_data, num_env = 16, history_stat_index = 0)
+    train_env = MockEnv(cfg, train_data, num_env = 50, history_stat_index = 0)
     train_loader = torch.utils.data.DataLoader(
         train_data, batch_size=cfg.batch_size, shuffle=True, pin_memory=False
     )
@@ -55,7 +57,7 @@ def main(cfg):
         betas=cfg.optim.betas,
     )
     env = hydra.utils.instantiate(cfg.env.gym)
-    goal_fn = hydra.utils.instantiate(cfg.goal_fn)
+    # goal_fn = hydra.utils.instantiate(cfg.goal_fn)
     run = wandb.init(
         project=cfg.wandb.project,
         entity=cfg.wandb.entity,
@@ -73,17 +75,19 @@ def main(cfg):
         eval_steps = 1000,
         batch = 2,
     ):
-        receding_horizon = 1
+        receding_horizon = 20
         for step in tqdm.tqdm(range(eval_steps), desc="eval on mock env"):
             if step == 0 or ai >= receding_horizon: 
                 ai = 0
                 obs = train_env.get_obs()
                 goal = torch.zeros((batch, cfg.model.goal_dim))
                 # predict the action
+                st = time.time()
                 action_pred, _, _ = cbet_model(obs, goal, None)
-                action = einops.rearrange(action_pred, "(N T) W A -> N T W A", T=cfg.model.obs_window_size)[:, -1, 0:1, :]
+                # print("time", time.time() - st)
+                action = einops.rearrange(action_pred, "(N T) W A -> N T W A", T=cbet_model.obs_window_size)[:, -1, 0:1, :]
                 # step the environment
-                actions = einops.rearrange(action_pred, "(N T) W A -> N T W A", T=cfg.model.obs_window_size)[
+                actions = einops.rearrange(action_pred, "(N T) W A -> N T W A", T=cbet_model.obs_window_size)[
                     :, -1, :, :
                 ]
             action = actions[:, ai:ai+1, :]
@@ -105,10 +109,21 @@ def main(cfg):
         return train_env.state_list, train_env.action_list
     # change the model to evaluation
     cbet_model.eval()
-    state_list, action_list = eval_on_mockenv(cfg)
-    train_env.save_data("/home/anqiao/MasterThesis/Data/OvenOpening/pt_vis/res_iter/add_noise_0.01/910_epochs/1_step/rolling_out_data_from_0_16envs.pt")
+    # for a in np.arange(0, -1.6, -0.1):
+    #     train_env.set_start_angle(a)
+    #     state_list, action_list = eval_on_mockenv(cfg)
+    #     train_env.save_data("/home/anqiao/MasterThesis/Data/OvenOpening/pt_vis/mangle_0-1.2/start_{:.2f}_rolling_from_0_16envs.pt".format(a))
     
-    return 0
+    # angle_list = np.arange(0, -1.6, -0.1)
+    # angle_list.fill(-0.1)
+    # train_env.set_angle_list(angle_list)
+    train_env.freeze_angle = False
+    state_list, action_list = eval_on_mockenv(cfg, eval_steps = 2000)
+    train_env.plot_different_state(plt_indicies = [30, 31, 42], plt_time = 2000, plot_env_num=2)
+    train_env.save_data("/media/anqiao/AnqiaoT7/MasterThesis/Data/OvenOpening/pt_vis/task_6/res_receding_20.pt")
+    fig = train_env.plot_different_state(plt_indicies = [6, 7, 8, 30, 31], plt_time = 1500)
+
+    return 0        
 
 
 if __name__ == "__main__":
