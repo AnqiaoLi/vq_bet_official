@@ -44,7 +44,7 @@ class BehaviorTransformer(nn.Module):
         self.sequentially_select = sequentially_select
         self.res_iter = res_iter
         self.uniformly_downsample = uniformly_downsample
-        self.observation_indices = torch.arange(obs_window_size - 1, 0, -self.uniformly_downsample).flip(0)
+        self.observation_indices = torch.arange(obs_window_size - 1, -1, -self.uniformly_downsample).flip(0)
         self.obs_window_size = self.obs_window_size//self.uniformly_downsample
         if goal_dim <= 0:
             self._cbet_method = self.GOAL_SPEC.unconditional
