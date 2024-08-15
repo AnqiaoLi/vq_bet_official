@@ -1,3 +1,20 @@
+# Evaluation of the trained model
+First of all, configure the environment as described in the [installation](#installation) section.
+
+The trained models are located [here](https://drive.google.com/drive/folders/1FNWuaqdX_gFe3lZ81EbNQbJXolYknYYA?usp=drive_link). Please refer to the [README](https://docs.google.com/document/d/10_l6JthJR5mIhrUVZ6cHAfR7RHSAkjQSwtQIB2wrG_E/edit?usp=drive_link) to choose the model you want to use. 
+Remember to download both the vq-vae and corresponding transformer together. 
+
+The datasets can be found [here](https://drive.google.com/drive/folders/1GuhKESIu7jteetjsQeu60sYF_Ha_P196?usp=drive_link). To evaluate the model, you only need to download the [full state trajectory](https://drive.google.com/drive/folders/1JnaoLTlpEAK2bF37zrAXkUitp82F3ITg?usp=drive_link). 
+
+After downloading, fill in the vq-vae path (`vqvae_load_dir`), transformer path(`load_path`) and the dataset path(`data.data_directory`) in `examples/configs/train_oven.yaml`.
+
+Run the following command to generate evaluation figures:
+``` python
+python examples/eval_train_alma.py
+```
+Check the comments in the `examples/eval_train_alma.py` for more details.
+
+
 # VQ-BeT: Behavior Generation with Latent Actions
 
 Official implementation of VQ-BeT: Behavior Generation with Latent Actions.
