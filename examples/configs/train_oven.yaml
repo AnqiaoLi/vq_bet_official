@@ -3,7 +3,7 @@ defaults:
   - _self_
 
 seed: 42
-window_size: 20
+window_size: 50
 goal_window_size: 10
 eval_window_size: 10
 batch_size: 1024
@@ -59,7 +59,7 @@ predict_contact: true
 # full distance
 # vqvae_load_dir: "/media/anqiao/AnqiaoT7/MasterThesis/Checkpoints/euler/oven_vq_vae/2024-07-25/13-54-54/pretrain_oven/trained_vqvae.pt"
 # res distance
-vqvae_load_dir: "/media/anqiao/AnqiaoT7/MasterThesis/Checkpoints/euler/oven_vq_vae/2024-07-31/17-16-54/pretrain_oven/trained_vqvae.pt"
+vqvae_load_dir: "/media/anqiao/AnqiaoT7/MasterThesis/Checkpoints/euler/oven_vq_vae/2024-07-31/22-52-02/pretrain_oven/trained_vqvae.pt"
 
 
 goal_dim: 0
@@ -138,7 +138,10 @@ save_path: "${env_vars.save_path}/checkpoints/${env.gym.id}/${now:%Y-%m-%d}/${no
 # full state distance, sparse observation
 # load_path: "/media/anqiao/AnqiaoT7/MasterThesis/Checkpoints/euler/oven_transformer/2024-07-27/07-22-36/silvery-violet-664"
 
-load_path: None
+# res state distance, sparse observation
+load_path: "/media/anqiao/AnqiaoT7/MasterThesis/Checkpoints/euler/oven_transformer/2024-08-13/01-19-05/frosty-tree-705"
+
+# load_path: None
 
 
 model:
