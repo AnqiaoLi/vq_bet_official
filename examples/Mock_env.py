@@ -32,6 +32,7 @@ index_to_name_dict_add = {
     1: "handle_position_y",
     2: "handle_position_z",
     3: "ee_handle_distance",
+    4: "phase"
 }
 # index_to_name_dict_contact = {
 #     0: "contact_0",
@@ -51,7 +52,6 @@ class MockEnv():
         self.obs_length = cfg.model.obs_window_size
         self.history_stat_index = history_stat_index
         self.freeze_angle = freeze_angle
-        self.initialize_with
         self.device = cfg.device
         
         # init the input buffer for vq-bet input
