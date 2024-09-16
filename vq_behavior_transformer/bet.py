@@ -31,6 +31,7 @@ class BehaviorTransformer(nn.Module):
         act_window_size=10,
         sequentially_select=False,
         visual_input=False,
+        state_input = False,
         finetune_resnet=False,
         res_iter = False,
         uniformly_downsample=1,
@@ -44,7 +45,9 @@ class BehaviorTransformer(nn.Module):
         self.sequentially_select = sequentially_select
         self.res_iter = res_iter
         self.uniformly_downsample = uniformly_downsample
+        self.image_sample_rate = 7
         self.observation_indices = torch.arange(obs_window_size - 1, -1, -self.uniformly_downsample).flip(0)
+        self.image_obs_indices = self.observation_indices // self.image_sample_rate
         self.obs_window_size = self.obs_window_size//self.uniformly_downsample
         if goal_dim <= 0:
             self._cbet_method = self.GOAL_SPEC.unconditional
@@ -98,6 +101,7 @@ class BehaviorTransformer(nn.Module):
         # Placeholder for the cluster centers.
         self._criterion = FocalLoss(gamma=gamma)
         self.visual_input = visual_input
+        self.state_input = state_input
         self.finetune_resnet = finetune_resnet
         # if self.predict_contact:
         #     self.contact_classifier = nn.Sequential(
@@ -128,40 +132,53 @@ class BehaviorTransformer(nn.Module):
         obs_seq: torch.Tensor,
         goal_seq: Optional[torch.Tensor],
         action_seq: Optional[torch.Tensor],
+        obs_image_seq: Optional[torch.Tensor] = None,
     ) -> Tuple[Optional[torch.Tensor], Optional[torch.Tensor]]:
-        return self._predict(obs_seq, goal_seq, action_seq)
+        return self._predict(obs_seq, goal_seq, action_seq, obs_image_seq)
 
     def _predict(
         self,
         obs_seq: torch.Tensor,
         goal_seq: Optional[torch.Tensor],
         action_seq: Optional[torch.Tensor],
+        obs_image_seq: Optional[torch.Tensor] = None,
     ) -> Tuple[Optional[torch.Tensor], Optional[torch.Tensor], Dict[str, float]]:
         # Assume dimensions are N T D for N sequences of T timesteps with dimension D.
         # sample the observation 
-        obs_seq = obs_seq[:, self.observation_indices, :]
+        # obs_seq = obs_seq[:, self.observation_indices, :]
         if self.visual_input:
-            obs_seq = obs_seq.cuda()
-            if obs_seq.ndim == 3:
-                obs_seq = obs_seq.clone().detach()
-                obs_seq = self._resnet_header(obs_seq)
+            obs_image_seq = obs_image_seq[:, self.image_obs_indices, :].to(torch.float32)
+            obs_image_seq = obs_image_seq.unsqueeze(2).repeat(1, 1, 3, 1, 1)
+            obs_seq = obs_seq[:, self.observation_indices, :].to(torch.float32)
+        else:
+            obs_seq = obs_seq[:, self.observation_indices, :].to(torch.float32)
+        if self.visual_input:
+            obs_image_seq = obs_image_seq.cuda()
+            if obs_image_seq.ndim == 3:
+                obs_image_seq = obs_image_seq.clone().detach()
+                obs_image_seq = self._resnet_header(obs_image_seq)
             else:
-                N = obs_seq.shape[0]
-                if obs_seq.shape[-1] == 3:
-                    obs_seq = (
-                        einops.rearrange(obs_seq, "N T W H C -> (N T) C W H") / 255.0
+                N = obs_image_seq.shape[0]
+                if obs_image_seq.shape[-1] == 3:
+                    obs_image_seq = (
+                        einops.rearrange(obs_image_seq, "N T W H C -> (N T) C W H") / 255.0
                     )  # * 2. - 1.
                 else:
-                    obs_seq = (
-                        einops.rearrange(obs_seq, "N T C W H -> (N T) C W H") / 255.0
+                    obs_image_seq = (
+                        einops.rearrange(obs_image_seq, "N T C W H -> (N T) C W H") / 255.0
                     )  # * 2. - 1.
-                # obs_seq = obs_seq.cuda()
-                if obs_seq.shape[-1] != 224:
-                    obs_seq = F.interpolate(obs_seq, size=224)
-                obs_seq = self.transform(obs_seq)
-                obs_seq = torch.squeeze(torch.squeeze(self.resnet(obs_seq), -1), -1)
-                obs_seq = self._resnet_header(obs_seq)
-                obs_seq = einops.rearrange(obs_seq, "(N T) L -> N T L", N=N)
+                # obs_image_seq = obs_image_seq.cuda()
+                if obs_image_seq.shape[-1] != 224:
+                    obs_image_seq = F.interpolate(obs_image_seq, size=224)
+                obs_image_seq = self.transform(obs_image_seq)
+                obs_image_seq = torch.squeeze(torch.squeeze(self.resnet(obs_image_seq), -1), -1)
+                obs_image_seq = self._resnet_header(obs_image_seq)
+                obs_image_seq = einops.rearrange(obs_image_seq, "(N T) L -> N T L", N=N)
+                if self.state_input:
+                    obs_seq = torch.cat((obs_seq, obs_image_seq), dim=-1)
+                else:
+                    obs_seq = obs_image_seq
+                
             if not (self._cbet_method == self.GOAL_SPEC.unconditional):
                 goal_seq = goal_seq.cuda()
                 if goal_seq.ndim == 3:
@@ -289,7 +306,7 @@ class BehaviorTransformer(nn.Module):
         if self.res_iter:
             res_prediction = decoded_action + sampled_offsets
             res_prediction = einops.rearrange(res_prediction, "(N T) W A -> N T W A", T=obs_seq.shape[1])
-            base_observation = obs_seq.unsqueeze(2) # (N, T_o, 1, Do)
+            base_observation = obs_seq[:, :, :self._obs_dim].unsqueeze(2) # (N, T_o, 1, Do)
             predicted_action = torch.tile(base_observation, (1, 1, self.act_window_size, 1))
             for i in range(self._vqvae_model.input_dim_h):
                 # (N, T_o, i:, Do) + (N, T_o, 1, Do) -> (N, T_o, i:, Do)

@@ -11,6 +11,7 @@ from torch.utils.data import Dataset, Subset, TensorDataset
 import pathlib
 import tqdm
 import struct
+import time
 import torch.nn.functional as F
 
 
@@ -351,6 +352,8 @@ class TrajectorySlicerDataset(TrajectoryDataset):
         only_sample_tail: bool = False,
         transform: Optional[Callable] = None,
         padding: str = "None", # "None", "before"
+        visual_input=False,
+        image_downsample_rate=7,
     ):
         if future_conditional:
             assert future_seq_len is not None, "must specify a future_seq_len"
@@ -365,6 +368,8 @@ class TrajectorySlicerDataset(TrajectoryDataset):
         self.only_sample_tail = only_sample_tail
         self.transform = transform
         self.padding = padding
+        self.visual_input = visual_input
+        self.image_downsample_rate = image_downsample_rate
         self.slices = []
         min_seq_length = np.inf
         if vqbet_get_future_action_chunk:
@@ -408,29 +413,148 @@ class TrajectorySlicerDataset(TrajectoryDataset):
     def __len__(self):
         return len(self.slices)
 
+    # def __getitem__(self, idx):
+    #     i, start, end = self.slices[idx]
+    #     if self.vqbet_get_future_action_chunk:
+    #         if end - start < self.window:
+    #             if self.dataset[i][0].ndim > 2:
+    #                 values = [
+    #                     torch.cat(
+    #                         (
+    #                             torch.tile(
+    #                                 self.dataset[i][0][start],
+    #                                 ((self.window - (end - start)), 1, 1, 1),
+    #                             ),
+    #                             self.dataset[i][0][start:end],
+    #                         ),
+    #                         dim=0,
+    #                     ),
+    #                     torch.cat(
+    #                         (
+    #                             torch.tile(
+    #                                 self.dataset[i][1][start],
+    #                                 ((self.window - (end - start)), 1),
+    #                             ),
+    #                             self.dataset[i][1][
+    #                                 start : end - 1 + self.action_window
+    #                             ],
+    #                         ),
+    #                         dim=-2,
+    #                     ),
+    #                 ]
+    #             else:
+    #                 values = [
+    #                     torch.cat(
+    #                         (
+    #                             torch.tile(
+    #                                 self.dataset[i][0][start],
+    #                                 ((self.window - (end - start)), 1),
+    #                             ),
+    #                             self.dataset[i][0][start:end],
+    #                         ),
+    #                         dim=-2,
+    #                     ),
+    #                     torch.cat(
+    #                         (
+    #                             torch.tile(
+    #                                 self.dataset[i][1][start],
+    #                                 ((self.window - (end - start)), 1),
+    #                             ),
+    #                             self.dataset[i][1][
+    #                                 start : end - 1 + self.action_window
+    #                             ],
+    #                         ),
+    #                         dim=-2,
+    #                     ),
+    #                 ]
+    #         else:
+    #             values = [
+    #                 self.dataset[i][0][start:end],
+    #                 self.dataset[i][1][start : end - 1 + self.action_window],
+    #             ]
+    #     else:
+    #         if end - start < self.window:
+    #             values = [
+    #                 torch.unsqueeze(self.dataset[i][0][start], dim=0),
+    #                 self.dataset[i][1][start : start + self.action_window],
+    #             ]
+    #         else:
+    #             values = [
+    #                 torch.unsqueeze(self.dataset[i][0][start], dim=0),
+    #                 self.dataset[i][1][start : start + self.action_window],
+    #             ]
+    #     if self.get_goal_from_dataset:
+    #         valid_start_range = (
+    #             end + self.min_future_sep,
+    #             self.dataset.get_seq_length(i) - self.future_seq_len,
+    #         )
+    #         if valid_start_range[0] < valid_start_range[1]:
+    #             if self.only_sample_tail:
+    #                 future_obs = self.dataset[i][2][-self.future_seq_len :]
+    #             else:
+    #                 start = np.random.randint(*valid_start_range)
+    #                 end = start + self.future_seq_len
+    #                 future_obs = self.dataset[i][2][start:end]
+    #         else:
+    #             future_obs = self.dataset[i][2][-self.future_seq_len :]
+
+    #         # [observations, actions, mask[, future_obs (goal conditional)]]
+    #         values.append(future_obs)
+
+    #     elif self.future_conditional:
+    #         valid_start_range = (
+    #             end + self.min_future_sep,
+    #             self.dataset.get_seq_length(i) - self.future_seq_len,
+    #         )
+    #         if valid_start_range[0] < valid_start_range[1]:
+    #             if self.only_sample_tail:
+    #                 future_obs = self.dataset[i][0][-self.future_seq_len :]
+    #             else:
+    #                 start = np.random.randint(*valid_start_range)
+    #                 end = start + self.future_seq_len
+    #                 future_obs = self.dataset[i][0][start:end]
+    #         else:
+    #             # if image-based data
+    #             if self.dataset[i][0].ndim > 2:
+    #                 future_obs = self.dataset[i][0][-self.future_seq_len :]
+    #             # if state-based data
+    #             else:
+    #                 # zeros placeholder T x obs_dim
+    #                 _, obs_dim = values[0].shape
+    #                 future_obs = torch.zeros((self.future_seq_len, obs_dim)).cuda()
+
+    #         # [observations, actions, mask[, future_obs (goal conditional)]]
+    #         values.append(future_obs)
+
+    #     # optionally apply transform
+    #     if self.transform is not None:
+    #         values = self.transform(values)
+    #     return tuple(values)
+    
     def __getitem__(self, idx):
         i, start, end = self.slices[idx]
+        dataset_i = self.dataset[i]
         if self.vqbet_get_future_action_chunk:
             if end - start < self.window:
-                if self.dataset[i][0].ndim > 2:
+                if dataset_i[0].ndim > 2:
                     values = [
                         torch.cat(
                             (
                                 torch.tile(
-                                    self.dataset[i][0][start],
+                                    dataset_i[0][start],
                                     ((self.window - (end - start)), 1, 1, 1),
                                 ),
-                                self.dataset[i][0][start:end],
+                                dataset_i[0][start:end],
                             ),
                             dim=0,
                         ),
                         torch.cat(
                             (
                                 torch.tile(
-                                    self.dataset[i][1][start],
+                                    dataset_i[1][start],
                                     ((self.window - (end - start)), 1),
                                 ),
-                                self.dataset[i][1][
+                                dataset_i[1][
                                     start : end - 1 + self.action_window
                                 ],
                             ),
@@ -442,20 +566,20 @@ class TrajectorySlicerDataset(TrajectoryDataset):
                         torch.cat(
                             (
                                 torch.tile(
-                                    self.dataset[i][0][start],
+                                    dataset_i[0][start],
                                     ((self.window - (end - start)), 1),
                                 ),
-                                self.dataset[i][0][start:end],
+                                dataset_i[0][start:end],
                             ),
                             dim=-2,
                         ),
                         torch.cat(
                             (
                                 torch.tile(
-                                    self.dataset[i][1][start],
+                                    dataset_i[1][start],
                                     ((self.window - (end - start)), 1),
                                 ),
-                                self.dataset[i][1][
+                                dataset_i[1][
                                     start : end - 1 + self.action_window
                                 ],
                             ),
@@ -463,20 +587,29 @@ class TrajectorySlicerDataset(TrajectoryDataset):
                         ),
                     ]
             else:
-                values = [
-                    self.dataset[i][0][start:end],
-                    self.dataset[i][1][start : end - 1 + self.action_window],
-                ]
+                if self.visual_input:
+                    values = [
+                        # dataset_i[0][start:end],
+                        dataset_i[0][start//self.image_downsample_rate:
+                            start//self.image_downsample_rate+self.window//self.image_downsample_rate + 1],
+                        dataset_i[1][start:end],
+                        dataset_i[2][start : end - 1 + self.action_window],
+                    ]
+                else:
+                    values = [
+                        dataset_i[0][start:end],
+                        dataset_i[1][start : end - 1 + self.action_window],
+                    ]
         else:
             if end - start < self.window:
                 values = [
-                    torch.unsqueeze(self.dataset[i][0][start], dim=0),
-                    self.dataset[i][1][start : start + self.action_window],
+                    torch.unsqueeze(dataset_i[0][start], dim=0),
+                    dataset_i[1][start : start + self.action_window],
                 ]
             else:
                 values = [
-                    torch.unsqueeze(self.dataset[i][0][start], dim=0),
-                    self.dataset[i][1][start : start + self.action_window],
+                    torch.unsqueeze(dataset_i[0][start], dim=0),
+                    dataset_i[1][start : start + self.action_window],
                 ]
         if self.get_goal_from_dataset:
             valid_start_range = (
@@ -485,13 +618,13 @@ class TrajectorySlicerDataset(TrajectoryDataset):
             )
             if valid_start_range[0] < valid_start_range[1]:
                 if self.only_sample_tail:
-                    future_obs = self.dataset[i][2][-self.future_seq_len :]
+                    future_obs = dataset_i[2][-self.future_seq_len :]
                 else:
                     start = np.random.randint(*valid_start_range)
                     end = start + self.future_seq_len
-                    future_obs = self.dataset[i][2][start:end]
+                    future_obs = dataset_i[2][start:end]
             else:
-                future_obs = self.dataset[i][2][-self.future_seq_len :]
+                future_obs = dataset_i[2][-self.future_seq_len :]
 
             # [observations, actions, mask[, future_obs (goal conditional)]]
             values.append(future_obs)
@@ -503,20 +636,20 @@ class TrajectorySlicerDataset(TrajectoryDataset):
             )
             if valid_start_range[0] < valid_start_range[1]:
                 if self.only_sample_tail:
-                    future_obs = self.dataset[i][0][-self.future_seq_len :]
+                    future_obs = dataset_i[1][-self.future_seq_len :]
                 else:
                     start = np.random.randint(*valid_start_range)
                     end = start + self.future_seq_len
-                    future_obs = self.dataset[i][0][start:end]
+                    future_obs = dataset_i[1][start:end]
             else:
                 # if image-based data
-                if self.dataset[i][0].ndim > 2:
-                    future_obs = self.dataset[i][0][-self.future_seq_len :]
+                if dataset_i[1].ndim > 2:
+                    future_obs = dataset_i[1][-self.future_seq_len :]
                 # if state-based data
                 else:
                     # zeros placeholder T x obs_dim
-                    _, obs_dim = values[0].shape
-                    future_obs = torch.zeros((self.future_seq_len, obs_dim)).cuda()
+                    _, obs_dim = values[1].shape
+                    future_obs = torch.zeros((self.future_seq_len, obs_dim)).to(values[0].device)
 
             # [observations, actions, mask[, future_obs (goal conditional)]]
             values.append(future_obs)
@@ -525,7 +658,6 @@ class TrajectorySlicerDataset(TrajectoryDataset):
         if self.transform is not None:
             values = self.transform(values)
         return tuple(values)
-
 
 def get_train_val_sliced(
     traj_dataset: TrajectoryDataset,
@@ -541,6 +673,8 @@ def get_train_val_sliced(
     only_sample_tail: bool = False,
     transform: Optional[Callable[[Any], Any]] = None,
     padding: str = "None",
+    visual_input=False,
+    image_downsample_rate=7,
 ):
     train, val = split_traj_datasets(
         traj_dataset, # (N, T, D)
@@ -557,7 +691,9 @@ def get_train_val_sliced(
         "future_seq_len": future_seq_len,
         "only_sample_tail": only_sample_tail,
         "transform": transform,
-        "padding": padding
+        "padding": padding,
+        "visual_input": visual_input,
+        "image_downsample_rate": image_downsample_rate
     }
     train_slices = TrajectorySlicerDataset(train, **traj_slicer_kwargs)
     val_slices = TrajectorySlicerDataset(val, **traj_slicer_kwargs)
@@ -749,36 +885,54 @@ def transpose_batch_timestep(*args):
 
 class ALMATrajectoryDataset(TensorDataset, TrajectoryDataset):
     def __init__(
-        self, data_directory, device="cuda", onehot_goals=False, visual_input=False
+        self, data_directory, device="cuda", onehot_goals=False, visual_input=False, load_traj_num=100
     ):
+        self.visual_input = visual_input
         data_directory = Path(data_directory)
-        if visual_input:
-            observations = []
-            for i in tqdm.trange(566):
-                img_obs_epi = torch.load(
-                    data_directory
-                    / "image_resnet_embedding"
-                    / "demostensor_epi_{}.pth".format(i),
-                    map_location=torch.device("cpu"),
-                )
-                img_obs_epi.requires_grad_(False)
-                observations.append(img_obs_epi.to(device))
-            observations = torch.stack(observations)
+        print("Loading data from: ", data_directory)
+        print("Loading trajectory number: ", load_traj_num)
+        if self.visual_input:
+            with h5py.File(data_directory / "data.h5", 'r') as f:
+                # Load the datasets back into memory as NumPy arrays
+                images_np = f['input_images'][:load_traj_num]  # Load all image data
+                states_np = f['input_states'][:load_traj_num, :, :-2]  # Load all state data
+                actions_np = f['output'][:load_traj_num]  # Load all action labels
+                masks_np = f['mask'][:load_traj_num]  # Load all mask data
+                
+            # actions_np = np.concatenate([actions_np[:, :, :37], actions_np[:, :, 39:]], axis=-1)
+            
+            # Optionally, convert them back to PyTorch tensors if needed
+            observations_image = torch.tensor(images_np)
+            observations = torch.tensor(states_np)
+            actions = torch.tensor(actions_np)
+            masks = torch.tensor(masks_np)
+            tensors = [observations_image, observations, actions]
+            # tensors = [observations, actions]
+            # self.observations_image = observations_image    
+            print("Loadint perception dataset:", 
+                    "\n observation_image: ", observations_image.shape,
+                    "\n observation: ", observations.shape,
+                    "\n actions: ", actions.shape,
+                    "\n masks: ", masks.shape)
+                
         else:
             observations = torch.load(data_directory / "input_data.pt").to(device)
             actions = torch.load(data_directory / "output_data.pt").to(device)
             masks = torch.load(data_directory / "mask_data.pt").to(device)
+            tensors = [observations, actions]
+            print("Loading state dataset:", 
+                "\n observation: ", observations.shape,
+                "\n actions: ", actions.shape,
+                "\n masks: ", masks.shape)
         
-        print("data size:", observations.shape, actions.shape)
-        
+        self.observations = observations
+        self.actions = actions
         self.masks = masks
-        tensors = [observations, actions]
         # if onehot_goals:
         #     tensors.append(goals)
-        tensors = [t.to(device).float() for t in tensors]
+        # tensors = [t.to(device).float() for t in tensors]
+        self.tensors = tensors
         TensorDataset.__init__(self, *tensors)
-        self.observations = self.tensors[0]
-        self.actions = self.tensors[1]
 
     def get_seq_length(self, idx):
         return int(self.masks[idx].sum().item())
@@ -802,6 +956,8 @@ def get_alma_train_val(
     transform: Optional[Callable[[Any], Any]] = None,
     visual_input=False,
     padding: str = "None",
+    load_traj_num=100,
+    image_downsample_rate = 7
 ):
     if goal_conditional is not None:
         assert goal_conditional in ["future", "onehot"]
@@ -810,6 +966,7 @@ def get_alma_train_val(
             data_directory,
             onehot_goals=(goal_conditional == "onehot"),
             visual_input=visual_input,
+            load_traj_num=load_traj_num
         ),
         train_fraction,
         random_seed,
@@ -822,5 +979,7 @@ def get_alma_train_val(
         future_seq_len=future_seq_len,
         transform=transform,
         padding=padding,
+        visual_input=visual_input,
+        image_downsample_rate = image_downsample_rate
     )
 

@@ -18,8 +18,9 @@ import wandb
 import pickle
 from Mock_env import MockEnv
 
+# os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 
-config_name = "train_oven"
+config_name = "train_oven_perception"
 
 def seed_everything(random_seed: int):
     np.random.seed(random_seed)
@@ -33,7 +34,7 @@ def main(cfg):
     print(OmegaConf.to_yaml(cfg))
     seed_everything(cfg.seed)
     train_data, test_data = hydra.utils.instantiate(cfg.data)
-    train_env = MockEnv(cfg, train_data, num_env=50, history_stat_index=0)
+    # train_env = MockEnv(cfg, train_data, num_env=50, history_stat_index=0)
     train_loader = torch.utils.data.DataLoader(
         train_data, batch_size=cfg.batch_size, shuffle=True, pin_memory=False
     )
@@ -42,7 +43,10 @@ def main(cfg):
     )
     if "visual_input" in cfg and cfg.visual_input:
         print("use visual environment")
-        cfg.model.gpt_model.config.input_dim = 1024
+        if cfg.state_input:
+            cfg.model.gpt_model.config.input_dim += 1024
+        else:
+            cfg.model.gpt_model.config.input_dim = 1024
     cbet_model = hydra.utils.instantiate(cfg.model).to(cfg.device)
     if cfg.load_path:
         cbet_model.load_model(Path(cfg.load_path))
@@ -68,7 +72,7 @@ def main(cfg):
         project=cfg.wandb.project,
         entity=cfg.wandb.entity,
         config=OmegaConf.to_container(cfg, resolve=True),
-        # mode="disabled"
+        mode="disabled"
     )
     run_name = run.name or "Offline"
     save_path = Path(cfg.save_path) / run_name
@@ -99,7 +103,7 @@ def main(cfg):
 
     for epoch in tqdm.trange(cfg.epochs, leave=False):
         cbet_model.eval()
-        if (epoch % cfg.eval_on_env_freq == 0):
+        if (epoch % cfg.eval_on_env_freq == 0 and not cfg.visual_input):
             train_env.reset()
             eval_on_mockenv(cfg, eval_steps=2000)
             fig_1 = train_env.plot_different_state(plt_indicies = [6, 7, 8, 30, 31, 42], plt_time = 1200, separate_env=True)
@@ -120,9 +124,13 @@ def main(cfg):
             action_diff_mean_res2 = 0
             action_diff_max = 0
             with torch.no_grad():
-                for data in test_loader:
-                    obs, act, goal = (x.to(cfg.device) for x in data)
-                    predicted_act, loss, loss_dict = cbet_model(obs, goal, act)
+                for data in tqdm.tqdm(test_loader, leave=False):
+                    if cfg.visual_input:
+                        obs_image, obs, act, goal = (x.to(cfg.device) for x in data)
+                        predicted_act, loss, loss_dict = cbet_model(obs, goal, act, obs_image)
+                    else:
+                        obs, act, goal = (x.to(cfg.device) for x in data)
+                        predicted_act, loss, loss_dict = cbet_model(obs, goal, act)
                     total_loss += loss.item()
                     wandb.log({"eval/{}".format(x): y for (x, y) in loss_dict.items()}, step = global_train_step)
                     action_diff += loss_dict["action_diff"]
@@ -143,11 +151,15 @@ def main(cfg):
                 optimizer["optimizer2"].zero_grad()
             else:
                 optimizer["optimizer2"].zero_grad()
-            obs, act, goal = (x.to(cfg.device) for x in data)
-            # add noise to observation
-            if cfg.noise_enhance_coef > 0:
-                obs += torch.randn_like(obs) * cfg.noise_enhance_coef
-            predicted_act, loss, loss_dict = cbet_model(obs, goal, act)
+            if cfg.visual_input:
+                obs_image, obs, act, goal = (x.to(cfg.device) for x in data)
+                predicted_act, loss, loss_dict = cbet_model(obs, goal, act, obs_image)
+            else:
+                obs, act, goal = (x.to(cfg.device) for x in data)
+                # add noise to observation
+                if cfg.noise_enhance_coef > 0:
+                    obs += torch.randn_like(obs) * cfg.noise_enhance_coef
+                predicted_act, loss, loss_dict = cbet_model(obs, goal, act)
             wandb.log({"train/{}".format(x): y for (x, y) in loss_dict.items()}, step = global_train_step)
             wandb.log({"train/lr_scheduler1": lr_scheduler["lr_scheduler1"].get_last_lr()[0]}, step = global_train_step)
             wandb.log({"train/lr_scheduler2": lr_scheduler["lr_scheduler2"].get_last_lr()[0]}, step = global_train_step)
