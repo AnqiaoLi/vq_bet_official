@@ -99,13 +99,13 @@ def main(cfg):
 
     for epoch in tqdm.trange(cfg.epochs, leave=False):
         cbet_model.eval()
-        if (epoch % cfg.eval_on_env_freq == 0):
+        if (epoch % cfg.eval_on_env_freq == 0 and not cfg.visual_input):
             train_env.reset()
             eval_on_mockenv(cfg, eval_steps=2000)
-            fig_1 = train_env.plot_different_state(plt_indicies = [6, 7, 8, 30, 31, 42], plt_time = 1200, separate_env=True)
+            fig_1 = train_env.plot_different_state(plt_indicies = [6, 7, 8, 37, 38, 43], plt_time = 1200, separate_env=True)
             wandb.log({"eval_on_mockenv": wandb.Image(fig_1)}, step = global_train_step)
             plt.close(fig_1)
-            fig_2 = train_env.plot_different_state(plt_indicies = [30, 31, 42], plt_time = 1200, separate_env=False,  plot_env_num = 50)
+            fig_2 = train_env.plot_different_state(plt_indicies = [37, 42, 39, 43], plt_time = 1200, separate_env=False,  plot_env_num = 50)
             plt.close(fig_2)
             wandb.log({"object_status": wandb.Image(fig_2)}, step = global_train_step)
             del fig_1
@@ -120,7 +120,7 @@ def main(cfg):
             action_diff_mean_res2 = 0
             action_diff_max = 0
             with torch.no_grad():
-                for data in test_loader:
+                for data in tqdm.tqdm(test_loader):
                     obs, act, goal = (x.to(cfg.device) for x in data)
                     predicted_act, loss, loss_dict = cbet_model(obs, goal, act)
                     total_loss += loss.item()

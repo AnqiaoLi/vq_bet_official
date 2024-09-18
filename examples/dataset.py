@@ -892,15 +892,13 @@ class ALMATrajectoryDataset(TensorDataset, TrajectoryDataset):
         print("Loading data from: ", data_directory)
         print("Loading trajectory number: ", load_traj_num)
         if self.visual_input:
-            with h5py.File(data_directory / "data.h5", 'r') as f:
+            with h5py.File(data_directory / "data_image.h5", 'r') as f:
                 # Load the datasets back into memory as NumPy arrays
                 images_np = f['input_images'][:load_traj_num]  # Load all image data
-                states_np = f['input_states'][:load_traj_num, :, :-2]  # Load all state data
+                states_np = f['input_states'][:load_traj_num]  # Load all state data
                 actions_np = f['output'][:load_traj_num]  # Load all action labels
                 masks_np = f['mask'][:load_traj_num]  # Load all mask data
                 
-            # actions_np = np.concatenate([actions_np[:, :, :37], actions_np[:, :, 39:]], axis=-1)
-            
             # Optionally, convert them back to PyTorch tensors if needed
             observations_image = torch.tensor(images_np)
             observations = torch.tensor(states_np)

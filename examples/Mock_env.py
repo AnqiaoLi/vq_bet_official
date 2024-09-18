@@ -3,6 +3,30 @@ import matplotlib.pyplot as plt
 import os
 
 # define a dict of {index: name}
+# index_to_name_dict_obs = {
+#     0: "velocity_x",
+#     1: "velocity_y",
+#     2: "velocity_z",
+#     3: "angular_velocity_x",
+#     4: "angular_velocity_y",
+#     5: "angular_velocity_z",
+#     6: "position_x",
+#     7: "position_y",
+#     8: "position_z",
+#     9: "euler_z",
+#     10: "euler_y",
+#     11: "euler_x",
+#     30: "object_p",
+#     31: "object_v",
+#     32: "ee_position_x",
+#     33: "ee_position_y",
+#     34: "ee_position_z",
+#     35: "ee_quaternion_x",
+#     36: "ee_quaternion_y",
+#     37: "ee_quaternion_z",
+#     38: "ee_quaternion_w",
+# }
+
 index_to_name_dict_obs = {
     0: "velocity_x",
     1: "velocity_y",
@@ -16,31 +40,35 @@ index_to_name_dict_obs = {
     9: "euler_z",
     10: "euler_y",
     11: "euler_x",
-    30: "object_p",
-    31: "object_v",
-    32: "ee_position_x",
-    33: "ee_position_y",
-    34: "ee_position_z",
-    35: "ee_quaternion_x",
-    36: "ee_quaternion_y",
-    37: "ee_quaternion_z",
-    38: "ee_quaternion_w",
+    28: "wrist_roll",
+    29: "wrist_pitch",
+    30: "ee_position_x",
+    31: "ee_position_y",
+    32: "ee_position_z",
+    33: "ee_quaternion_x",
+    34: "ee_quaternion_y",
+    35: "ee_quaternion_z",
+    36: "ee_quaternion_w",
 }
 
 index_to_name_dict_add = {
-    0: "handle_position_x",
-    1: "handle_position_y",
-    2: "handle_position_z",
-    3: "ee_handle_distance",
-    4: "phase"
+    0: "object_p",
+    1: "object_v",
+    2: "phase",
+    3: "handle_position_x",
+    4: "handle_position_y",
+    5: "handle_position_z",
+    6: "ee_handle_distance",
 }
-# index_to_name_dict_contact = {
-#     0: "contact_0",
-#     1: "contact_1",
-#     2: "contact_2",
-#     3: "contact_3",
-#     4: "ee_contact",
+
+# index_to_name_dict_add = {
+#     0: "handle_position_x",
+#     1: "handle_position_y",
+#     2: "handle_position_z",
+#     3: "ee_handle_distance",
+#     4: "phase"
 # }
+
 
 class MockEnv():
     """ Mock environment for rolling out the model"""
