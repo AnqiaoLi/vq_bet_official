@@ -69,6 +69,7 @@ goal_dim: 0
 
 wandb:
   project: "vq-bet"
+  run_name: "transformer_visual/"
   entity: ${env_vars.wandb_entity}
 
 device: cuda
@@ -95,7 +96,7 @@ data:
   _target_: dataset.get_alma_train_val
   # data_directory: ${env_vars.datasets.oven}
   # data_directory: /home/anqiao/MasterThesis/Data/OvenOpening/pt/output_fullstate
-  data_directory: /media/anqiao/AnqiaoT7/MasterThesis/Data/OvenOpening/pt/Task_8/data/output_fullstate_dfo_image
+  data_directory: /media/anqiao/AnqiaoT7/MasterThesis/Data/OvenOpening/pt/Task_9/data
   # goal_conditional: future
   goal_conditional: future
   window_size: ${window_size}

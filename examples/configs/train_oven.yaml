@@ -66,6 +66,7 @@ goal_dim: 0
 
 wandb:
   project: "vq-bet"
+  run_name: "transformer_state/"
   entity: ${env_vars.wandb_entity}
 
 device: cuda
@@ -84,15 +85,15 @@ env:
       _target_: gym.make
       id: kitchen-v0
     visual_input: ${visual_input}
-  obs_dim: 39
-  act_dim: 43
+  obs_dim: 37
+  act_dim: 44
   goal_dim: ${goal_dim}
 
 data:
   _target_: dataset.get_alma_train_val
   # data_directory: ${env_vars.datasets.oven}
   # data_directory: /home/anqiao/MasterThesis/Data/OvenOpening/pt/output_fullstate
-  data_directory: /media/anqiao/AnqiaoT7/MasterThesis/Data/OvenOpening/pt/Task_8/data/output_fullstate_auxiliary_cleaned
+  data_directory: /media/anqiao/AnqiaoT7/MasterThesis/Data/OvenOpening/pt/Task_9/data/output_res_visual_input
   goal_conditional: future
   window_size: ${window_size}
   future_seq_len: ${goal_window_size}
@@ -100,6 +101,7 @@ data:
   action_window_size: ${action_window_size}
   vqbet_get_future_action_chunk: true
   padding: "None"
+  visual_input: ${visual_input}
 
 save_every: 10
 save_path: "${env_vars.save_path}/checkpoints/${env.gym.id}/${now:%Y-%m-%d}/${now:%H-%M-%S}"
@@ -139,9 +141,9 @@ save_path: "${env_vars.save_path}/checkpoints/${env.gym.id}/${now:%Y-%m-%d}/${no
 # load_path: "/media/anqiao/AnqiaoT7/MasterThesis/Checkpoints/euler/oven_transformer/2024-07-27/07-22-36/silvery-violet-664"
 
 # res state distance, sparse observation
-load_path: "/media/anqiao/AnqiaoT7/MasterThesis/Checkpoints/euler/oven_transformer/2024-08-13/01-19-05/frosty-tree-705"
+# load_path: "/media/anqiao/AnqiaoT7/MasterThesis/Checkpoints/euler/oven_transformer/2024-08-13/01-19-05/frosty-tree-705"
 
-# load_path: None
+load_path: None
 
 
 model:
@@ -152,6 +154,7 @@ model:
   obs_window_size: ${window_size}
   act_window_size: ${action_window_size}
   sequentially_select: ${sequentially_select}
+  visual_input: ${visual_input}
   res_iter: true
   uniformly_downsample: 5
   gpt_model:

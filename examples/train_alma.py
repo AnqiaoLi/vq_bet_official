@@ -67,6 +67,7 @@ def main(cfg):
     run = wandb.init(
         project=cfg.wandb.project,
         entity=cfg.wandb.entity,
+        name=cfg.wandb.run_name, 
         config=OmegaConf.to_container(cfg, resolve=True),
         # mode="disabled"
     )
