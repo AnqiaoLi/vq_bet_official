@@ -157,7 +157,11 @@ def main(cfg):
             else:
                 optimizer["optimizer2"].zero_grad()
             if cfg.visual_input:
-                obs_image, obs, act, goal = (x.to(cfg.device) for x in data)
+                # obs_image, obs, act, goal = (x.to(cfg.device) for x in data)
+                obs_image = data[0]
+                obs = data[1]
+                act = data[2].to(cfg.device)
+                goal = data[3].to(cfg.device)
                 if cfg.noise_enhance_coef > 0:
                     obs += torch.randn_like(obs) * cfg.noise_enhance_coef
                 predicted_act, loss, loss_dict = cbet_model(obs, goal, act, obs_image)
