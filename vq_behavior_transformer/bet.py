@@ -162,12 +162,18 @@ class BehaviorTransformer(nn.Module):
             else:
                 N = obs_image_seq.shape[0]
                 if obs_image_seq.shape[-1] == 3:
+                    # obs_image_seq = (
+                        # einops.rearrange(obs_image_seq, "N T W H C -> (N T) C W H") / 255.0
+                    # )  # * 2. - 1.
                     obs_image_seq = (
-                        einops.rearrange(obs_image_seq, "N T W H C -> (N T) C W H") / 255.0
+                        einops.rearrange(obs_image_seq, "N T W H C -> (N T) C W H") / 2.0
                     )  # * 2. - 1.
                 else:
+                    # obs_image_seq = (
+                        # einops.rearrange(obs_image_seq, "N T C W H -> (N T) C W H") / 255.0
+                    # )  # * 2. - 1.
                     obs_image_seq = (
-                        einops.rearrange(obs_image_seq, "N T C W H -> (N T) C W H") / 255.0
+                        einops.rearrange(obs_image_seq, "N T C W H -> (N T) C W H") / 2.0
                     )  # * 2. - 1.
                 # obs_image_seq = obs_image_seq.cuda()
                 if obs_image_seq.shape[-1] != 224:
