@@ -150,6 +150,8 @@ class BehaviorTransformer(nn.Module):
             obs_image_seq = obs_image_seq[:, self.image_obs_indices, :].to(torch.float32)
             obs_image_seq = obs_image_seq.unsqueeze(2).repeat(1, 1, 3, 1, 1)
             obs_seq = obs_seq[:, self.observation_indices, :].to(torch.float32)
+            obs_seq = obs_seq.cuda()
+            obs_image_seq = obs_image_seq.cuda()
         else:
             obs_seq = obs_seq[:, self.observation_indices, :].to(torch.float32)
         if self.visual_input:
@@ -322,8 +324,9 @@ class BehaviorTransformer(nn.Module):
         if action_seq is not None:
             n, total_w, act_dim = action_seq.shape
             act_w = self._vqvae_model.input_dim_h
-            obs_w = total_w + 1 - act_w
-            obs_w = obs_w // self.uniformly_downsample
+            # obs_w = total_w + 1 - act_w
+            # obs_w = obs_w // self.uniformly_downsample
+            obs_w = len(self.observation_indices)
             output_shape = (n, obs_w, act_w, act_dim)
             output = torch.empty(output_shape).to(action_seq.device)
             for i in range(obs_w):

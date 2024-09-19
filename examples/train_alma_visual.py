@@ -127,7 +127,11 @@ def main(cfg):
             with torch.no_grad():
                 for data in tqdm.tqdm(test_loader, leave=False):
                     if cfg.visual_input:
-                        obs_image, obs, act, goal = (x.to(cfg.device) for x in data)
+                        # obs_image, obs, act, goal = (x.to(cfg.device) for x in data)
+                        obs_image = data[0]
+                        obs = data[1]
+                        act = data[2].to(cfg.device)
+                        goal = data[3].to(cfg.device)
                         predicted_act, loss, loss_dict = cbet_model(obs, goal, act, obs_image)
                     else:
                         obs, act, goal = (x.to(cfg.device) for x in data)
