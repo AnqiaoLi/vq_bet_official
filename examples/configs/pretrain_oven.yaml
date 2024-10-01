@@ -50,6 +50,7 @@ data:
   action_window_size: ${action_window_size}
   vqbet_get_future_action_chunk: false
   padding: "None"
+  load_traj_num: 200
 
 init_normalization: true
 normalizer:
