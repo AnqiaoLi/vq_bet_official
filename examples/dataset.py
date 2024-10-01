@@ -885,14 +885,14 @@ def transpose_batch_timestep(*args):
 
 class ALMATrajectoryDataset(TensorDataset, TrajectoryDataset):
     def __init__(
-        self, data_directory, device="cuda", onehot_goals=False, visual_input=False, load_traj_num=100
+        self, data_directory, device="cuda", onehot_goals=False, visual_input=False, load_traj_num=100, res_action=True
     ):
         self.visual_input = visual_input
         data_directory = Path(data_directory)
         print("Loading data from: ", data_directory)
         print("Loading trajectory number: ", load_traj_num)
         if self.visual_input:
-            with h5py.File(data_directory / "data_image.h5", 'r') as f:
+            with h5py.File(data_directory, 'r') as f:
                 # Load the datasets back into memory as NumPy arrays
                 images_np = f['input_images'][:load_traj_num]  # Load all image data
                 states_np = f['input_states'][:load_traj_num]  # Load all state data
@@ -914,14 +914,33 @@ class ALMATrajectoryDataset(TensorDataset, TrajectoryDataset):
                     "\n masks: ", masks.shape)
                 
         else:
-            observations = torch.load(data_directory / "input_data.pt").to(device)
-            actions = torch.load(data_directory / "output_data.pt").to(device)
-            masks = torch.load(data_directory / "mask_data.pt").to(device)
+            with h5py.File(data_directory, 'r') as f:
+                # Load the datasets back into memory as NumPy arrays
+                states_np = f['input_states'][:load_traj_num]  # Load all state data
+                if res_action:
+                    actions_np = f['output_res'][:load_traj_num]
+                else:
+                    actions_np = f['output_fullstate'][:load_traj_num]  # Load all action labels
+                masks_np = f['mask'][:load_traj_num]  # Load all mask data
+                
+            # Optionally, convert them back to PyTorch tensors if needed
+            observations = torch.tensor(states_np)
+            actions = torch.tensor(actions_np)
+            masks = torch.tensor(masks_np)
             tensors = [observations, actions]
-            print("Loading state dataset:", 
-                "\n observation: ", observations.shape,
-                "\n actions: ", actions.shape,
-                "\n masks: ", masks.shape)
+            # self.observations_image = observations_image    
+            print("Loadint perception dataset:", 
+                    "\n observation: ", observations.shape,
+                    "\n actions: ", actions.shape,
+                    "\n masks: ", masks.shape)
+            # observations = torch.load(data_directory / "input_data.pt").to(device)
+            # actions = torch.load(data_directory / "output_data.pt").to(device)
+            # masks = torch.load(data_directory / "mask_data.pt").to(device)
+            # tensors = [observations, actions]
+            # print("Loading state dataset:", 
+            #     "\n observation: ", observations.shape,
+            #     "\n actions: ", actions.shape,
+            #     "\n masks: ", masks.shape)
         
         self.observations = observations
         self.actions = actions
@@ -955,7 +974,8 @@ def get_alma_train_val(
     visual_input=False,
     padding: str = "None",
     load_traj_num=100,
-    image_downsample_rate = 7
+    image_downsample_rate = 7,
+    res_action=False
 ):
     if goal_conditional is not None:
         assert goal_conditional in ["future", "onehot"]
@@ -964,7 +984,8 @@ def get_alma_train_val(
             data_directory,
             onehot_goals=(goal_conditional == "onehot"),
             visual_input=visual_input,
-            load_traj_num=load_traj_num
+            load_traj_num=load_traj_num,
+            res_action=res_action
         ),
         train_fraction,
         random_seed,
