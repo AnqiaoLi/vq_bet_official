@@ -45,8 +45,8 @@ class Normalizer:
         data_dict = {"obs": torch.zeros((0, obs_dim)).to(self.device), "act": torch.zeros((0, act_dim)).to(self.device)}
 
         for data_trajectory in tqdm.tqdm(data, desc="Fitting normalizer"):
-            data_dict["obs"] = torch.cat((data_dict["obs"], data_trajectory[0]), dim = 0)
-            data_dict["act"] = torch.cat((data_dict["act"], data_trajectory[1]), dim = 0)
+            data_dict["obs"] = torch.cat((data_dict["obs"], data_trajectory[0].to(self.device)), dim = 0)
+            data_dict["act"] = torch.cat((data_dict["act"], data_trajectory[1].to(self.device)), dim = 0)
         self._fit(data_dict, output_max, output_min)
 
     def normalize(self, data):
