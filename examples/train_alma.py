@@ -70,7 +70,7 @@ def main(cfg):
         entity=cfg.wandb.entity,
         name=cfg.wandb.run_name, 
         config=OmegaConf.to_container(cfg, resolve=True),
-        mode="disabled"
+        # mode="disabled"
     )
     run_name = run.name or "Offline"
     save_path = Path(cfg.save_path) / run_name

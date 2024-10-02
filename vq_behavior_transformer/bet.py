@@ -35,6 +35,7 @@ class BehaviorTransformer(nn.Module):
         finetune_resnet=False,
         res_iter = False,
         uniformly_downsample=1,
+        clip_phase_output = True
     ):
         super().__init__()
         self._obs_dim = obs_dim
@@ -44,11 +45,14 @@ class BehaviorTransformer(nn.Module):
         self.act_window_size = act_window_size
         self.sequentially_select = sequentially_select
         self.res_iter = res_iter
+        # downsampling the observation
         self.uniformly_downsample = uniformly_downsample
         self.image_sample_rate = 7
         self.observation_indices = torch.arange(obs_window_size - 1, -1, -self.uniformly_downsample).flip(0)
         self.image_obs_indices = self.observation_indices // self.image_sample_rate
         self.obs_window_size = self.obs_window_size//self.uniformly_downsample
+        # clip the phase output
+        self.clip_phase_output = clip_phase_output
         if goal_dim <= 0:
             self._cbet_method = self.GOAL_SPEC.unconditional
         elif obs_dim == goal_dim:
@@ -326,6 +330,10 @@ class BehaviorTransformer(nn.Module):
             predicted_action = torch.cat((predicted_action, predicted_contact), dim=-1)
         else:
             predicted_action = decoded_action + sampled_offsets
+        
+        if self.clip_phase_output:
+            clamped_phase = torch.clamp(predicted_action[..., -1], 0, 1)
+            predicted_action = torch.cat((predicted_action[..., :-1], clamped_phase.unsqueeze(-1)), dim=-1)
         
         if action_seq is not None:
             n, total_w, act_dim = action_seq.shape
