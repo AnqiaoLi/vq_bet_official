@@ -110,7 +110,6 @@ data:
   padding: "None"
   visual_input: ${visual_input}
   load_traj_num: 200
-  res_action: false
 
 save_every: 10
 save_path: "${env_vars.save_path}/checkpoints/${env.gym.id}/${now:%Y-%m-%d}/${now:%H-%M-%S}"
