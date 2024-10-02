@@ -109,6 +109,8 @@ data:
   vqbet_get_future_action_chunk: true
   padding: "None"
   visual_input: ${visual_input}
+  load_traj_num: 200
+  res_action: false
 
 save_every: 10
 save_path: "${env_vars.save_path}/checkpoints/${env.gym.id}/${now:%Y-%m-%d}/${now:%H-%M-%S}"
@@ -191,6 +193,7 @@ model:
     normalization: true
   offset_loss_multiplier: 100
   secondary_code_multiplier: 1
+  clip_phase_output: true
 
 goal_fn:
   _target_: kitchen_env.get_goal_fn
