@@ -16,7 +16,7 @@ num_final_eval_per_goal: 5
 action_window_size: 20
 sequentially_select: false
 action_mode: "f"
-noise_enhance_coef: 0.01
+noise_enhance_coef: 0.05
 visual_input: false # true: image-based policy, false: state-based policy
 predict_contact: true
 # normalization scale= 10
@@ -59,8 +59,14 @@ predict_contact: true
 # full distance
 # vqvae_load_dir: "/media/anqiao/AnqiaoT7/MasterThesis/Checkpoints/euler/oven_vq_vae/2024-07-25/13-54-54/pretrain_oven/trained_vqvae.pt"
 # res distance
-vqvae_load_dir: "/media/anqiao/AnqiaoT7/MasterThesis/Checkpoints/euler/oven_vq_vae/2024-07-31/22-52-02/pretrain_oven/trained_vqvae.pt"
+# vqvae_load_dir: "/media/anqiao/AnqiaoT7/MasterThesis/Checkpoints/euler/oven_vq_vae/2024-07-31/22-52-02/pretrain_oven/trained_vqvae.pt"
+# res_state, for visual input, state_dim = 37
+# vqvae_load_dir: "/media/anqiao/AnqiaoT7/MasterThesis/Checkpoints/euler/oven_vq_vae/2024-09-18/11-40-24/pretrain_oven/resstate/trained_vqvae.pt"
 
+# state-input residual-action oven-opening, real_robot_employment  
+vqvae_load_dir: "/media/anqiao/AnqiaoT7/MasterThesis/Checkpoints/euler/oven_vq_vae/2024-10-01/13-34-37/pretrain_oven/OvenOpening_res/trained_vqvae.pt"
+# state-input fullstate-action oven-opening, real_robot_employment
+# vqvae_load_dir: "/media/anqiao/AnqiaoT7/MasterThesis/Checkpoints/euler/oven_vq_vae/2024-10-01/13-35-03/pretrain_oven/OvenOpening_fullstate/trained_vqvae.pt"
 
 goal_dim: 0
 
@@ -85,15 +91,16 @@ env:
       _target_: gym.make
       id: kitchen-v0
     visual_input: ${visual_input}
-  obs_dim: 37
-  act_dim: 44
+  obs_dim: 46
+  act_dim: 48
   goal_dim: ${goal_dim}
 
 data:
   _target_: dataset.get_alma_train_val
   # data_directory: ${env_vars.datasets.oven}
   # data_directory: /home/anqiao/MasterThesis/Data/OvenOpening/pt/output_fullstate
-  data_directory: /media/anqiao/AnqiaoT7/MasterThesis/Data/OvenOpening/pt/Task_9/data/output_res_visual_input
+  data_directory: /media/anqiao/AnqiaoT7/MasterThesis/Data/OvenOpening/pt/Task_10/OvenOpening/data/state_dataset.h5
+  res_action: false
   goal_conditional: future
   window_size: ${window_size}
   future_seq_len: ${goal_window_size}
@@ -142,6 +149,9 @@ save_path: "${env_vars.save_path}/checkpoints/${env.gym.id}/${now:%Y-%m-%d}/${no
 
 # res state distance, sparse observation
 # load_path: "/media/anqiao/AnqiaoT7/MasterThesis/Checkpoints/euler/oven_transformer/2024-08-13/01-19-05/frosty-tree-705"
+
+# res_state, no visual input, state_dim = 37
+# load_path: "/media/anqiao/AnqiaoT7/MasterThesis/Checkpoints/euler/oven_transformer/2024-09-18/15-12-38/transformer/resstate_a20"
 
 load_path: None
 
@@ -192,3 +202,9 @@ goal_fn:
   unconditional: false
   goal_dim: ${goal_dim}
   visual_input: ${visual_input}
+
+obs_noise:
+  _target_: obs_noise.ObsNoise
+  input_mode: "state_input"
+  obs_dim: ${env.obs_dim}
+

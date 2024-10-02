@@ -33,6 +33,7 @@ def main(cfg):
     print(OmegaConf.to_yaml(cfg))
     seed_everything(cfg.seed)
     train_data, test_data = hydra.utils.instantiate(cfg.data)
+    obs_noise = hydra.utils.instantiate(cfg.obs_noise)
     train_env = MockEnv(cfg, train_data, num_env=50, history_stat_index=0)
     train_loader = torch.utils.data.DataLoader(
         train_data, batch_size=cfg.batch_size, shuffle=True, pin_memory=False
@@ -69,7 +70,7 @@ def main(cfg):
         entity=cfg.wandb.entity,
         name=cfg.wandb.run_name, 
         config=OmegaConf.to_container(cfg, resolve=True),
-        # mode="disabled"
+        mode="disabled"
     )
     run_name = run.name or "Offline"
     save_path = Path(cfg.save_path) / run_name
@@ -103,10 +104,10 @@ def main(cfg):
         if (epoch % cfg.eval_on_env_freq == 0 and not cfg.visual_input):
             train_env.reset()
             eval_on_mockenv(cfg, eval_steps=2000)
-            fig_1 = train_env.plot_different_state(plt_indicies = [6, 7, 8, 37, 38, 43], plt_time = 1200, separate_env=True)
+            fig_1 = train_env.plot_different_state(plt_indicies = [2, 7, 8, 45, 46, 47], plt_time = 1200, separate_env=True)
             wandb.log({"eval_on_mockenv": wandb.Image(fig_1)}, step = global_train_step)
             plt.close(fig_1)
-            fig_2 = train_env.plot_different_state(plt_indicies = [37, 42, 39, 43], plt_time = 1200, separate_env=False,  plot_env_num = 50)
+            fig_2 = train_env.plot_different_state(plt_indicies = [2, 7, 8, 45, 46, 47], plt_time = 1200, separate_env=False,  plot_env_num = 50)
             plt.close(fig_2)
             wandb.log({"object_status": wandb.Image(fig_2)}, step = global_train_step)
             del fig_1
@@ -146,8 +147,9 @@ def main(cfg):
                 optimizer["optimizer2"].zero_grad()
             obs, act, goal = (x.to(cfg.device) for x in data)
             # add noise to observation
-            if cfg.noise_enhance_coef > 0:
-                obs += torch.randn_like(obs) * cfg.noise_enhance_coef
+            # if cfg.noise_enhance_coef > 0:
+            #     obs += torch.randn_like(obs) * cfg.noise_enhance_coef
+            obs += torch.randn_like(obs) * obs_noise.get_noise_vector().to(obs.device)
             predicted_act, loss, loss_dict = cbet_model(obs, goal, act)
             wandb.log({"train/{}".format(x): y for (x, y) in loss_dict.items()}, step = global_train_step)
             wandb.log({"train/lr_scheduler1": lr_scheduler["lr_scheduler1"].get_last_lr()[0]}, step = global_train_step)

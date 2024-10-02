@@ -1,6 +1,7 @@
 import torch
 import matplotlib.pyplot as plt
 import os
+from robot_state_indices import STATE_INPUT_INDICIES_DICT
 
 # define a dict of {index: name}
 # index_to_name_dict_obs = {
@@ -74,7 +75,7 @@ class MockEnv():
     """ Mock environment for rolling out the model"""
     def __init__(self, cfg, data, num_env = 2, history_stat_index = 0, freeze_angle = False, repeat_init = True):
         self.num_env = num_env
-        self.data = data.dataset.dataset.observations
+        self.data = data.dataset.dataset.observations.to(cfg.device)
         self.obs_dim = self.data.shape[-1]
         self.act_dim = data.dataset.dataset.actions.shape[-1]
         self.obs_length = cfg.model.obs_window_size
@@ -181,12 +182,12 @@ class MockEnv():
                     if plt_indicies[j] < self.state_list.shape[-1]:
                         axs[i, j].plot(self.state_list[i, :plt_time, plt_indicies[j]].cpu().detach().numpy(), label = "state", linewidth = line_width)
                         axs[i, j].plot(self.reference_state[i, :plt_time, plt_indicies[j]].cpu().detach().numpy(), label = "reference", linewidth = line_width)
-                        axs[i, j].set_title(f"env {i}, {index_to_name_dict_obs[plt_indicies[j]]}")
+                        axs[i, j].set_title(f"env {i}, {STATE_INPUT_INDICIES_DICT[plt_indicies[j]]}")
                     else:
                         add_state_index = plt_indicies[j] - self.state_list.shape[-1]
                         axs[i, j].plot(range(self.add_list[i, :plt_time, add_state_index].shape[0]), self.add_list[i, :plt_time, add_state_index].cpu().detach().numpy(), label = "addional_state", linewidth = line_width)
                         axs[i, j].plot(range(self.reference_add[i, :plt_time, add_state_index].shape[0]), self.reference_add[i, :plt_time, add_state_index].cpu().detach().numpy(), label = "reference", linewidth = line_width)
-                        axs[i, j].set_title(f"env {i}, {index_to_name_dict_add[add_state_index]}")
+                        axs[i, j].set_title(f"env {i}, {STATE_INPUT_INDICIES_DICT[plt_indicies[j]]}")
             # plt.show()
             plt.legend()
             fig.suptitle("State and Reference Trajectories")
@@ -199,11 +200,11 @@ class MockEnv():
                 for i in range(plot_env_num):
                     if plt_indicies[j] < self.state_list.shape[-1]:
                         axs[j].plot(self.state_list[i, :plt_time, plt_indicies[j]].cpu().detach().numpy(), linewidth = line_width)
-                        axs[j].set_title(f"{index_to_name_dict_obs[plt_indicies[j]]}")
+                        axs[j].set_title(f"{STATE_INPUT_INDICIES_DICT[plt_indicies[j]]}")
                     else:
                         add_state_index = plt_indicies[j] - self.state_list.shape[-1]
                         axs[j].scatter(range(self.add_list[i, :plt_time, add_state_index].shape[0]), self.add_list[i, :plt_time, add_state_index].cpu().detach().numpy(), linewidth = line_width)
-                        axs[j].set_title(f"{index_to_name_dict_add[add_state_index]}")
+                        axs[j].set_title(f"{STATE_INPUT_INDICIES_DICT[plt_indicies[j]]}")
             # plt.show()
             plt.legend()
             fig.suptitle("State Trajectories of {} Environments".format(plot_env_num))
