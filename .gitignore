@@ -34,7 +34,8 @@ MANIFEST
 *.spec
 
 # Example files.
-checkpoints/
+checkpoints/*
+!checkpoints/.gitkeep
 outputs/
 wandb/
 
