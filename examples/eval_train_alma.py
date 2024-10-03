@@ -42,7 +42,7 @@ def main(cfg):
     train_env = MockEnv(cfg, train_data, num_env = 50, history_stat_index = 0)
     if "visual_input" in cfg and cfg.visual_input:
         print("use visual environment")
-        cfg.model.gpt_model.config.input_dim = 1024
+        cfg.model.gpt_model.config.input_dim += 1024
     # Initialize model
     cbet_model = hydra.utils.instantiate(cfg.model).to(cfg.device)
     if cfg.load_path:
@@ -100,8 +100,8 @@ def main(cfg):
     #######################################################
     # normal evaluation
     state_list, action_list = eval_on_mockenv(cfg, eval_steps = 2000)
-    fig_1 = train_env.plot_different_state(plt_indicies = [30, 31, 42], plt_time = 2000, separate_env = False, plot_env_num=50) # see Mock_env.py for indicies_name pairs 
-    fig_2 = train_env.plot_different_state(plt_indicies = [30, 31, 42], plt_time = 2000, separate_env = True)
+    fig_1 = train_env.plot_different_state(plt_indicies = [2, 7, 8, 45, 46, 47], plt_time = 2000, separate_env = False, plot_env_num=50) # see Mock_env.py for indicies_name pairs 
+    fig_2 = train_env.plot_different_state(plt_indicies = [2, 7, 8, 45, 46, 47], plt_time = 2000, separate_env = True)
     plt.show()
     # save the trajectory
     # train_env.save_data("/media/anqiao/AnqiaoT7/MasterThesis/Data/OvenOpening/pt_vis/task_8/res_receding_1.pt")
