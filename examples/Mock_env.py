@@ -203,7 +203,7 @@ class MockEnv():
                         axs[j].set_title(f"{STATE_INPUT_INDICIES_DICT[plt_indicies[j]]}")
                     else:
                         add_state_index = plt_indicies[j] - self.state_list.shape[-1]
-                        axs[j].scatter(range(self.add_list[i, :plt_time, add_state_index].shape[0]), self.add_list[i, :plt_time, add_state_index].cpu().detach().numpy(), linewidth = line_width)
+                        axs[j].plot(self.add_list[i, :plt_time, add_state_index].cpu().detach().numpy(), linewidth = line_width)
                         axs[j].set_title(f"{STATE_INPUT_INDICIES_DICT[plt_indicies[j]]}")
             # plt.show()
             plt.legend()
